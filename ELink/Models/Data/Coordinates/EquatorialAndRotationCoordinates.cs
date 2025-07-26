@@ -1,4 +1,5 @@
-﻿using System;
+﻿using ELink.Interfaces.Utils;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -6,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace ELink.Models.Data.Coordinates
 {
-    public struct EquatorialAndRotationCoordinates
+    public struct EquatorialAndRotationCoordinates : ICoordinates
     {
         public double Ra { get; set; }
         public double Dec { get; set; }
