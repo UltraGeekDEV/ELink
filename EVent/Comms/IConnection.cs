@@ -9,6 +9,6 @@ namespace EVent.Comms
     public interface IConnection
     {
         public void SendData(byte[] data);
-        public void ExpectData<T>(string eventID, IComms<T> handler);
+        public void ExpectData(string eventID, IComms handler);
     }
 }

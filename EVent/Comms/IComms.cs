@@ -6,8 +6,8 @@ using System.Threading.Tasks;
 
 namespace EVent.Comms
 {
-    public interface IComms<T>
+    public interface IComms
     {
-        public void Send(T data);
+        public void Send<T>(T data);
     }
 }
