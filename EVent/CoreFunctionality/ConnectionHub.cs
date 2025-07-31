@@ -9,11 +9,16 @@ namespace EVent.CoreFunctionality
 {
     public class ConnectionHub
     {
-        private Action<string, IComms>? EventHooked;
+        private Action<string, IComms>? IncommingEventHooked;
+        private Action<string, IComms>? OutgoingEventHooked;
 
-        public void AttachConnectionHandler(Action<string, IComms> handler)
+        public void AttachIncommingHandler(Action<string, IComms> handler)
         {
-            EventHooked += handler;
+            IncommingEventHooked += handler;
+        }
+        public void AttachOutgoingHandler(Action<string, IComms> handler)
+        {
+            OutgoingEventHooked += handler;
         }
     }
 }

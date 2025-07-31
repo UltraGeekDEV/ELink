@@ -9,5 +9,6 @@ namespace EVent.Comms
     public interface IComms
     {
         public void Send<T>(T data);
+        public void HookDataRecieved<T>(Action<T> handler);
     }
 }
