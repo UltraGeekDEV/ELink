@@ -8,7 +8,6 @@
 
   <ItemGroup>
     <Folder Include="CoreFunctionality\" />
-    <Folder Include="Comms\" />
     <Folder Include="Utils\" />
   </ItemGroup>
 
