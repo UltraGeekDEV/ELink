@@ -1,4 +1,5 @@
 ﻿using EVent.Comms;
+using EVent.Connections.Models;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
@@ -54,22 +55,23 @@ namespace EVent.Connections.TCP
 
             var messageLength = BinaryPrimitives.ReadInt32LittleEndian(buffer);
 
-            var recievedData = new List<byte>(messageLength);
+            if(messageLength > PackageInfo.MaxPackageSize) return null;
+
+            var recievedData = new byte[messageLength];
 
             while (totalRead < messageLength)
             {
-                int bytesRead = await stream.ReadAsync(buffer, 0, messageLength - totalRead);
+                int bytesRead = await stream.ReadAsync(recievedData, totalRead, messageLength - totalRead);
                 if (bytesRead == 0)
                     return null;
                 totalRead += bytesRead;
-                for (int i = 0; i < bytesRead; i++)
-                {
-                    recievedData.Add(buffer[i]);
-                }
             }
 
-           return new PackageInfo(recievedData.ToArray());
+            if( recievedData.Length != messageLength ) return null;
+
+           return new PackageInfo(recievedData);
         }
+        
         public void SendData(PackageInfo package)
         {
            

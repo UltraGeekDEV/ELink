@@ -4,9 +4,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using EVent.Comms;
-using EVent.Connections.TCP;
 
-namespace EVent.Connections
+namespace EVent.Connections.Models
 {
     public interface IConnection
     {

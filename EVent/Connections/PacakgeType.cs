@@ -8,8 +8,7 @@ namespace EVent.Connections
 {
     public enum PackageType
     {
-        ClientCommand,
-        ServerCommand,
+        Handshake,
         Data
     }
 }
