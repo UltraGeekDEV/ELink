@@ -25,6 +25,7 @@ namespace EVent.Connections.TCP
         public void Run(IPAddress listeningAdress,int port)
         {
             Debug.WriteLine("Server started");
+            //for testing purposes, directly relay event back to clients
             DataRecieved += async x => await SendData(x);
             mainThread = Task.Run(() =>
             {
