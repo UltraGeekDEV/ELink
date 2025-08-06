@@ -6,9 +6,10 @@ using System.Threading.Tasks;
 
 namespace EVent.Connections
 {
-    public enum PackageType
+    public enum PackageType:byte
     {
+        Invalid,
         Handshake,
-        Data
+        Data,
     }
 }

@@ -15,24 +15,68 @@ namespace EVent.Connections.Models
         public byte[] Data { get; set; }
         public PackageInfo()
         {
+            Data = new byte[0];
         }
         public PackageInfo(byte[] data)
         {
-            var stringLength = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(0, sizeof(uint)));
-            int startID = sizeof(uint);
-
+            var stringLength = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(0, sizeof(int)));
+            int startID = sizeof(int);
             EventID = Encoding.UTF8.GetString(data.AsSpan(startID, stringLength));
-
             startID += stringLength;
+
+            type = (PackageType)data[startID];
+            startID++;
             Data = data.AsSpan(startID).ToArray();
         }
+        public static async Task<PackageInfo?> ReadPackage(Stream stream)
+        {
+            try
+            {
+                byte[] buffer = new byte[4096];
+                int totalRead = 0;
+                while (totalRead < sizeof(int))
+                {
+                    int bytesRead = await stream.ReadAsync(buffer, totalRead, sizeof(int) - totalRead);
+                    if (bytesRead == 0)
+                        return null;
+                    totalRead += bytesRead;
+                }
+                totalRead = 0;
 
+                var messageLength = BinaryPrimitives.ReadInt32LittleEndian(buffer);
+
+                if (messageLength > PackageInfo.MaxPackageSize) return null;
+
+                var recievedData = new byte[messageLength];
+
+                while (totalRead < messageLength)
+                {
+                    int bytesRead = await stream.ReadAsync(recievedData, totalRead, messageLength - totalRead);
+                    if (bytesRead == 0)
+                        return null;
+                    totalRead += bytesRead;
+                }
+
+                if (recievedData.Length != messageLength)
+                {
+                    Console.WriteLine($"Message degenerate, recieved/expected: {totalRead} / {messageLength}");
+                    return PackageInfo.InvalidPackage;
+                }
+
+                return new PackageInfo(recievedData);
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine($"Error while reading message: {ex.Message}");
+                return null;
+            }
+        }
         public byte[] ToBytes()
         {
             var eventIDBytes = Encoding.UTF8.GetBytes(EventID);
             var lengthBytes = new byte[4];
             BinaryPrimitives.WriteInt32LittleEndian(lengthBytes, eventIDBytes.Length);
-            var packageLen = 4 + eventIDBytes.Length + Data.Length;
+            var packageLen = 4 + eventIDBytes.Length + Data.Length + 1;
             if (packageLen > MaxPackageSize)
             {
                 throw new ExsessivePackageSizeException($"The package ({packageLen}) exceeds the maximum package size ({MaxPackageSize} bytes)");
@@ -41,10 +85,12 @@ namespace EVent.Connections.Models
             var result = new byte[packageLen];
             Buffer.BlockCopy(lengthBytes, 0, result, 0, 4);
             Buffer.BlockCopy(eventIDBytes, 0, result, 4, eventIDBytes.Length);
-            Buffer.BlockCopy(Data, 0, result, 4 + eventIDBytes.Length, Data.Length);
+            Buffer.BlockCopy(new byte[] { (byte)type }, 0, result, 4 + eventIDBytes.Length, 1);
+            Buffer.BlockCopy(Data, 0, result, 1 + 4 + eventIDBytes.Length, Data.Length);
 
             return result;
         }
 
+        public static PackageInfo InvalidPackage => new PackageInfo() { type = PackageType.Invalid };
     }
 }

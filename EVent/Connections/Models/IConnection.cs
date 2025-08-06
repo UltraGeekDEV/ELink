@@ -9,7 +9,8 @@ namespace EVent.Connections.Models
 {
     public interface IConnection
     {
-        public void SendData(PackageInfo data);
-        public void ExpectData(Action<PackageInfo> handler);
+        public Task SendData(PackageInfo data);
+        public void OnDataRecieved(Action<PackageInfo> handler);
+        public void Stop();
     }
 }
