@@ -1,9 +1,12 @@
 ﻿using EVent.Connections;
 using EVent.Connections.Models;
+using EVent.Connections.Models.BaseBinaryConvertables;
 using EVent.Connections.TCP;
+using EVent.CoreFunctionality;
 using System.Buffers.Binary;
 using System.Net;
 using System.Net.Sockets;
+using System.Net.WebSockets;
 using System.Text;
 
 namespace TestServer
@@ -12,26 +15,27 @@ namespace TestServer
     {
         static void Main(string[] args)
         {
-            TCPServer tcpServer = new TCPServer();
-            tcpServer.Run(IPAddress.Any, 5000);
+            var servers = new List<IServer>() { new TCPServer(IPAddress.Any, 5000) };
+            var eVentHub = new EventHub(servers);
+
+            eVentHub.Setup();
+
+            var transmitterText = TCPClientConnection<BinaryConvertableString>.ConnectAsTransmitter("A", "127.0.0.1", 5000);
+            var transmitterDate = TCPClientConnection<BinaryConvertableString>.ConnectAsTransmitter("A|B", "127.0.0.1", 5000);
 
             var clientTask = Task.Run(() =>
             {
-                var transmitter = TCPClientConnection.ConnectAsTransmitter("127.0.0.1", 5000);
-
-                while (transmitter.IsAlive)
+                while (transmitterText.IsAlive)
                 {
-                    var package = new PackageInfo() { type = PackageType.Data };
-
-                    Console.WriteLine("Enter event selector");
-                    var eventID = Console.ReadLine();
                     Console.WriteLine("Enter message");
                     var message = Console.ReadLine();
 
-                    package.EventID = eventID;
-                    package.Data = Encoding.UTF8.GetBytes(message);
-
-                    transmitter.SendData(package).Wait();
+                    if (message != null)
+                    {
+                        transmitterText.SendData(message).Wait();
+                        Console.WriteLine($"Time is:{DateTime.Now.Hour}:{DateTime.Now.Minute}.{DateTime.Now.Second}.{DateTime.Now.Millisecond}");
+                        transmitterDate.SendData($"Time is:{DateTime.Now.Hour}:{DateTime.Now.Minute}.{DateTime.Now.Second}.{DateTime.Now.Millisecond}").Wait();
+                    }
                 }
             });
 

@@ -1,13 +1,14 @@
 ﻿using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace EVent.Connections.Models
+namespace EVent.Connections.Models.BaseBinaryConvertables
 {
-    public class PackageInfo
+    public class PackageInfo : IBinaryConvertable
     {
         public static uint MaxPackageSize = 202 * 1024 * 1024; // ~100Mp 16 bit mono+ 2Mb overhead
         public string EventID { get; set; }
@@ -17,7 +18,7 @@ namespace EVent.Connections.Models
         {
             Data = new byte[0];
         }
-        public PackageInfo(byte[] data)
+        public IBinaryConvertable FromBytes(byte[] data)
         {
             var stringLength = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(0, sizeof(int)));
             int startID = sizeof(int);
@@ -27,6 +28,7 @@ namespace EVent.Connections.Models
             type = (PackageType)data[startID];
             startID++;
             Data = data.AsSpan(startID).ToArray();
+            return this;
         }
         public static async Task<PackageInfo?> ReadPackage(Stream stream)
         {
@@ -45,7 +47,7 @@ namespace EVent.Connections.Models
 
                 var messageLength = BinaryPrimitives.ReadInt32LittleEndian(buffer);
 
-                if (messageLength > PackageInfo.MaxPackageSize) return null;
+                if (messageLength > MaxPackageSize) return null;
 
                 var recievedData = new byte[messageLength];
 
@@ -59,15 +61,15 @@ namespace EVent.Connections.Models
 
                 if (recievedData.Length != messageLength)
                 {
-                    Console.WriteLine($"Message degenerate, recieved/expected: {totalRead} / {messageLength}");
-                    return PackageInfo.InvalidPackage;
+                    Debug.WriteLine($"Message degenerate, recieved/expected: {totalRead} / {messageLength}");
+                    return InvalidPackage;
                 }
-
-                return new PackageInfo(recievedData);
+                var ret = new PackageInfo();
+                return (PackageInfo)ret.FromBytes(recievedData);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
-                Console.WriteLine($"Error while reading message: {ex.Message}");
+                Debug.WriteLine($"Error while reading message: {ex.Message}");
                 return null;
             }
         }
@@ -79,7 +81,7 @@ namespace EVent.Connections.Models
             var packageLen = 4 + eventIDBytes.Length + Data.Length + 1;
             if (packageLen > MaxPackageSize)
             {
-                throw new ExsessivePackageSizeException($"The package ({packageLen}) exceeds the maximum package size ({MaxPackageSize} bytes)");
+                throw new ExcessivePackageSizeException($"The package ({packageLen}) exceeds the maximum package size ({MaxPackageSize} bytes)");
             }
 
             var result = new byte[packageLen];

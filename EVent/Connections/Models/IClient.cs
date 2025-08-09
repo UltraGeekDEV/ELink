@@ -6,10 +6,8 @@ using System.Threading.Tasks;
 
 namespace EVent.Connections.Models
 {
-    public class ExsessivePackageSizeException : Exception
+    public interface IClient
     {
-        public ExsessivePackageSizeException(string msg): base(msg)
-        {
-        }
+        public void Stop();
     }
 }

@@ -1,5 +1,6 @@
 ﻿using EVent.Connections;
 using EVent.Connections.Models;
+using EVent.Connections.Models.BaseBinaryConvertables;
 using EVent.Connections.TCP;
 using System.Buffers.Binary;
 using System.ComponentModel;
@@ -21,16 +22,14 @@ namespace BasicBehaviourTesting
             Task.Delay(1000).Wait();
 
             Console.WriteLine("Recievers: A / B");
-            var clientA = TCPClientConnection.ConnectAsReciever("A", "127.0.0.1", 5000);
-            clientA.OnDataRecieved(package =>
+            var clientA = TCPClientConnection<BinaryConvertableString>.ConnectAsReciever("A", "127.0.0.1", 5000);
+            clientA.OnDataRecieved(message =>
             {
-                var message = Encoding.UTF8.GetString(package.Data);
                 Console.WriteLine($"A recieved: {message}");
             });
-            var clientB = TCPClientConnection.ConnectAsReciever("B", "127.0.0.1", 5000);
-            clientB.OnDataRecieved(package =>
+            var clientB = TCPClientConnection<BinaryConvertableString>.ConnectAsReciever("B", "127.0.0.1", 5000);
+            clientB.OnDataRecieved(message =>
             {
-                var message = Encoding.UTF8.GetString(package.Data);
                 Console.WriteLine($"B recieved: {message}");
             });
             while (true) ;

@@ -1,5 +1,6 @@
 ﻿using EVent.Comms;
 using EVent.Connections.Models;
+using EVent.Connections.Models.BaseBinaryConvertables;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
@@ -12,30 +13,44 @@ using System.Threading.Tasks;
 
 namespace EVent.Connections.TCP
 {
-    public class TCPServer : IConnection
+    public class TCPServer : IServer
     {
         Action<PackageInfo>? DataRecieved;
+        Action<string,IServer>? AddedEvent;
+        Action<string,IServer>? RemovedEvent;
         TcpListener tcpListener;
         Task mainThread;
         bool IsAlive = true;
 
+        IPAddress listeningAdress;
+        int port;
+
         Dictionary<string, List<TcpClient>> events = new Dictionary<string, List<TcpClient>>();
         object eventLock = new object();
-
-        public void Run(IPAddress listeningAdress,int port)
+        public TCPServer(IPAddress listeningAdress, int port)
+        {
+            this.listeningAdress = listeningAdress;
+            this.port = port;
+        }
+        public void Run()
         {
             Debug.WriteLine("Server started");
-            //for testing purposes, directly relay event back to clients
-            DataRecieved += async x => await SendData(x);
-
+            
             mainThread = Task.Run(() =>
             {
-                tcpListener = new TcpListener(listeningAdress, port);
-                tcpListener.Start();
-                while (IsAlive)
+                try
                 {
-                    var client = tcpListener.AcceptTcpClient();
-                    AcceptClient(client);
+                    tcpListener = new TcpListener(listeningAdress, port);
+                    tcpListener.Start();
+                    while (IsAlive)
+                    {
+                        var client = tcpListener.AcceptTcpClient();
+                        AcceptClient(client);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Exception on the server{ex.Message}");
                 }
             });   
         }
@@ -57,6 +72,7 @@ namespace EVent.Connections.TCP
             if (handhsake is null || handhsake.type == PackageType.Invalid) 
             {
                 Debug.WriteLine("Package was malformed");
+                return;
             }
 
             if (handhsake.type == PackageType.Handshake)
@@ -67,6 +83,7 @@ namespace EVent.Connections.TCP
                     if (!events.ContainsKey(handhsake.EventID))
                     {
                         events[handhsake.EventID] = new List<TcpClient>();
+                        AddedEvent?.Invoke(handhsake.EventID,this);
                     }
 
                     events[handhsake.EventID].Add(client);
@@ -89,6 +106,7 @@ namespace EVent.Connections.TCP
                 PackageInfo? packageInfo = null;
                 while ((packageInfo = await PackageInfo.ReadPackage(stream)) != null)
                 {
+                    Debug.WriteLine("Message Recived");
                     if (packageInfo.type != PackageType.Invalid)
                     {
                         DataRecieved?.Invoke(packageInfo);
@@ -119,6 +137,7 @@ namespace EVent.Connections.TCP
                     if (events[eventID].Count == 0)
                     {
                         events.Remove(eventID);
+                        RemovedEvent?.Invoke(eventID,this);
                     }
                 }
             }
@@ -178,7 +197,14 @@ namespace EVent.Connections.TCP
         {
             DataRecieved += handler;
         }
-
+        public void OnEventAdded(Action<string,IServer> handler)
+        {
+            AddedEvent += handler;
+        }
+        public void OnEventRemoved(Action<string, IServer> handler)
+        {
+            RemovedEvent += handler;
+        }
         public void Stop()
         {
             IsAlive = false;

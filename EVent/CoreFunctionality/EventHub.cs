@@ -1,6 +1,10 @@
 ﻿using EVent.Comms;
+using EVent.Connections.Models;
+using EVent.Connections.Models.BaseBinaryConvertables;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO.Pipes;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -9,43 +13,60 @@ namespace EVent.CoreFunctionality
 {
     public class EventHub
     {
-        private Dictionary<string,List<IComms>> outgoingEvents = new Dictionary<string, List<IComms>>();
-        private Dictionary<string,List<IComms>> incommingEvents = new Dictionary<string, List<IComms>>();
-        private ConnectionHub connectionHub = new ConnectionHub();
+        private Dictionary<IServer, List<string>> servers = new Dictionary<IServer, List<string>>();
+        private object eventsLock = new object();
+        private Dictionary<IServer,object> connectionLocks;
+        public EventHub(List<IServer> connections)
+        {
+            servers = connections.ToDictionary(x=>x,y=>new List<string>());
+            connectionLocks = connections.Select(x => new { connection = x, lockObject = new object() }).ToDictionary(x => x.connection, x => x.lockObject);
+        }
         public void Setup()
         {
-            connectionHub.AttachIncommingHandler(HookIncommingEvent);
-            connectionHub.AttachOutgoingHandler(HookOutgoingEvent);
-        }
-        private void HookOutgoingEvent(string eventID,IComms eventHandler)
-        {
-            if (!outgoingEvents.ContainsKey(eventID))
+            foreach (var connection in servers.Keys)
             {
-                outgoingEvents[eventID] = new List<IComms>();
+                connection.OnEventAdded(AddEvent);
+                connection.OnEventRemoved(RemoveEvent);
+                connection.OnDataRecieved(DataRecieved);
+                connection.Run();
             }
-
-            outgoingEvents[eventID].Add(eventHandler);
         }
-        private void HookIncommingEvent(string eventID, IComms eventHandler)
+        private void AddEvent(string eventID,IServer server)
         {
-            if (!incommingEvents.ContainsKey(eventID))
+            Debug.WriteLine($"Added Event: {eventID}");
+            lock (eventsLock)
             {
-                incommingEvents[eventID] = new List<IComms>();
+                servers[server].Add(eventID);
             }
-
-            incommingEvents[eventID].Add(eventHandler);
-            eventHandler.HookDataRecieved<byte[]>((data) => HandleIncomming(eventID, data));
         }
-        private void HandleIncomming(string eventID,byte[] data)
+        private void RemoveEvent(string eventID, IServer server)
         {
-            if(!outgoingEvents.ContainsKey(eventID))
+            Debug.WriteLine($"Removed Event: {eventID}");
+            lock (eventsLock)
+            {
+                servers[server].Remove(eventID);
+            }
+        }
+        private void DataRecieved(PackageInfo package)
+        {
+            var eventList = package.EventID.Split('|').ToHashSet();
+            Dictionary<IServer, List<string>> serversCopy;
+            lock (eventsLock)
+            {
+                serversCopy = servers.ToDictionary();
+            }
+            var serverList = serversCopy.Where(x => x.Value.Any(y => eventList.Contains(y))).Select(x=>x.Key).ToList();
+            if (servers.Count == 0)
             {
                 return;
             }
 
-            foreach (var outgoingEvent in outgoingEvents[eventID])
+            foreach (var server in serverList)
             {
-                outgoingEvent.Send(data);
+                lock (connectionLocks[server])
+                {
+                    server.SendData(package);
+                }
             }
         }
     }

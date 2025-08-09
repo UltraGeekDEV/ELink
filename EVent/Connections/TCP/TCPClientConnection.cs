@@ -1,5 +1,6 @@
 ﻿using EVent.Comms;
 using EVent.Connections.Models;
+using EVent.Connections.Models.BaseBinaryConvertables;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
@@ -14,20 +15,43 @@ using System.Threading.Tasks;
 
 namespace EVent.Connections.TCP
 {
-    public class TCPClientConnection : IConnection
+    public class TCPClientConnection<T> : IClient where T : IBinaryConvertable,new()
     {
         private string EventID;
         private TcpClient tcpClient;
 
-        private Action<PackageInfo> OnDataRecievedEvent;
+        private Action<T> OnDataRecievedEvent;
         public bool IsAlive { get; private set; }
 
-        public void OnDataRecieved(Action<PackageInfo> handler)
+        public void OnDataRecieved(Action<T> handler)
         {
             OnDataRecievedEvent += handler;
         }
 
-        public async Task SendData(PackageInfo package)
+        public async Task SendData(T data)
+        {
+            if (!IsAlive)
+            {
+                return;
+            }
+            try
+            {
+                var package = new PackageInfo() { EventID = EventID, type = PackageType.Data,Data = data.ToBytes()};
+                Stream stream = tcpClient.GetStream();
+                var packageData = package.ToBytes();
+                var messageLen = new byte[sizeof(int)];
+
+                BinaryPrimitives.WriteInt32LittleEndian(messageLen, packageData.Length);
+
+                await stream.WriteAsync(messageLen, 0, messageLen.Length);
+                await stream.WriteAsync(packageData, 0, packageData.Length);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("Error while sending data");
+            }
+        }
+        private async Task SendData(PackageInfo package)
         {
             if (!IsAlive)
             {
@@ -73,7 +97,10 @@ namespace EVent.Connections.TCP
                             continue;
                         }
 
-                        OnDataRecievedEvent?.Invoke(package);
+                        var objectRecieved = new T();
+                        objectRecieved.FromBytes(package.Data);
+
+                        OnDataRecievedEvent?.Invoke(objectRecieved);
                     }
                 }
                 catch(IOException ioEx)
@@ -90,20 +117,20 @@ namespace EVent.Connections.TCP
             }
 
         }
-        public static TCPClientConnection? ConnectAsReciever(string EventID, string serverAdress, int serverPort)
+        public static TCPClientConnection<T>? ConnectAsReciever(string EventID, string serverAdress, int serverPort)
         {
             var tcpClient = new TcpClient();
-            var connection = new TCPClientConnection() { EventID = EventID, tcpClient = tcpClient , IsAlive = true};
+            var connection = new TCPClientConnection<T>() { EventID = EventID, tcpClient = tcpClient , IsAlive = true};
             var handshakePackage = new PackageInfo() { type = PackageType.Handshake, EventID = EventID };
 
             Task.Run(() => connection.RunClient(handshakePackage, serverAdress, serverPort));
             return connection;
         }
 
-        public static TCPClientConnection? ConnectAsTransmitter(string serverAdress, int serverPort)
+        public static TCPClientConnection<T>? ConnectAsTransmitter(string EventID, string serverAdress, int serverPort)
         {
             var tcpClient = new TcpClient();
-            var connection = new TCPClientConnection() { EventID = "null", tcpClient = tcpClient, IsAlive = true };
+            var connection = new TCPClientConnection<T>() { EventID = EventID, tcpClient = tcpClient, IsAlive = true };
             var handshakePackage = new PackageInfo() { type = PackageType.Data, EventID = "null" };
 
             Task.Run(() => connection.RunClient(handshakePackage,serverAdress,serverPort));
@@ -114,5 +141,6 @@ namespace EVent.Connections.TCP
         {
             IsAlive = false;
         }
+
     }
 }
