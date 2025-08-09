@@ -27,6 +27,7 @@ namespace EVent.Connections.TCP
             Debug.WriteLine("Server started");
             //for testing purposes, directly relay event back to clients
             DataRecieved += async x => await SendData(x);
+
             mainThread = Task.Run(() =>
             {
                 tcpListener = new TcpListener(listeningAdress, port);
@@ -181,6 +182,24 @@ namespace EVent.Connections.TCP
         public void Stop()
         {
             IsAlive = false;
+        }
+
+        public bool HasEvent(string eventID)
+        {
+            lock (eventLock)
+            {
+                return events.ContainsKey(eventID);
+            }
+        }
+
+        public bool HasEvent(IEnumerable<string> events)
+        {
+            IEnumerable<string> existingEvents;
+            lock(eventLock)
+            {
+                existingEvents = this.events.Keys.ToList();
+            }
+            return existingEvents.AsParallel().Any(x => x.Equals(events));
         }
     }
 }
