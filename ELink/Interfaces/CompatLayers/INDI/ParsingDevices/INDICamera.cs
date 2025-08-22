@@ -1,9 +1,12 @@
 ﻿using ELink.Interfaces.Utils;
 using ELink.Models.Data.Capture;
+using ELink.Models.Data.Image;
 using ELink.Models.Utils.Comms;
 using EVent.Connections.TCP;
 using System;
 using System.Collections.Generic;
+using System.Drawing;
+using System.Drawing.Imaging;
 using System.Linq;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
@@ -57,8 +60,8 @@ namespace ELink.Interfaces.CompatLayers.INDI.ParsingDevices
                 {
                     try
                     {
-                        Console.WriteLine("BLOB recieved for image");
-                        CreateIamge(item.Value);
+                        var img = CreateImage(item.Value);
+                        //TODO:: HANDLE IMAGE
                     }
                     catch (Exception ex) 
                     { 
@@ -67,30 +70,145 @@ namespace ELink.Interfaces.CompatLayers.INDI.ParsingDevices
                 }
             }
         }
-        private void CreateIamge(string data)
+        private ELinkImage? CreateImage(string data)
         {
-            var blob = Convert.FromBase64String(data);
-
-            int headerLength = 0;
-            Console.WriteLine("Fits header:");
-            for (int i = 0; i < blob.Length; i += 2880)
+            try
             {
-                string block = Encoding.ASCII.GetString(blob, i, 2880);
-                headerLength += 2880;
+                var blob = Convert.FromBase64String(data);
+                var image = new ELinkImage();
 
-                var records = Enumerable.Range(0, block.Length / 80)
-                        .Select(i => block.Substring(i * 80, 80))
-                        .ToArray();
+                //File.WriteAllBytes("./debug.fits", blob);
 
-                foreach (var item in records)
+                int headerLength = 0;
+                Console.WriteLine("Fits header:");
+                int i = 0;
+                for (; i < blob.Length; i += 2880)
                 {
-                    if (item.Contains('='))
+                    string block = Encoding.ASCII.GetString(blob, i, 2880);
+                    headerLength += 2880;
+
+                    var records = Enumerable.Range(0, block.Length / 80)
+                            .Select(i => block.Substring(i * 80, 80))
+                            .ToArray();
+
+                    foreach (var item in records)
                     {
-                        var lineItem = new FITSHeaderItem(item);
-                        Console.WriteLine($"\t{item}");
+                        if (item.Contains('='))
+                        {
+                            var lineItem = new FITSHeaderItem(item);
+                            Console.ForegroundColor = ConsoleColor.Blue;
+                            Console.Write($"\t{lineItem.key}");
+                            Console.ForegroundColor = ConsoleColor.Gray;
+                            Console.Write(" = ");
+                            Console.ForegroundColor = ConsoleColor.White;
+                            Console.Write($"\t{lineItem.value}");
+                            Console.ForegroundColor = ConsoleColor.Green;
+                            Console.Write($"\t/ {lineItem.comment}\n");
+                            image.FitsHeader[lineItem.key] = lineItem;
+                        }
+                    }
+                    Console.ForegroundColor = ConsoleColor.Gray;
+                    if (block.Contains(" END ")) break;
+                }
+
+                if (image.FitsHeader.Count == 0)
+                {
+                    Console.WriteLine("Skipping empty image");
+                    return null;
+                }
+
+                var outputDataSize = (blob.Length - i) / 2;
+                var bzero = int.Parse(image.FitsHeader["BZERO"].value);
+                var bscale = float.Parse(image.FitsHeader["BSCALE"].value);
+
+                var nAxis = int.Parse(image.FitsHeader["NAXIS"].value);
+                var width = int.Parse(image.FitsHeader["NAXIS1"].value);
+                var height = int.Parse(image.FitsHeader["NAXIS2"].value);
+
+                image.Width = width/2;
+                image.Height = height/2;
+
+                var isCol = nAxis == 3;
+                var isBayer = image.FitsHeader.ContainsKey("BAYERPAT");
+                var bayerName = image.FitsHeader["BAYERPAT"].value;
+                var bayerXOffset = int.Parse(image.FitsHeader["XBAYROFF"].value);
+                var bayerYOffset = int.Parse(image.FitsHeader["YBAYROFF"].value);
+
+                int[,] bayerMatrix = new int[,] {
+                {bayerName[1] == 'R' ? 0 : bayerName[1] == 'G' ? 1 : 2, bayerName[2] == 'R' ? 0 : bayerName[2] == 'G' ? 1 : 2 },
+                {bayerName[3] == 'R' ? 0 : bayerName[3] == 'G' ? 1 : 2 ,bayerName[4] == 'R' ? 0 : bayerName[4] == 'G' ? 1 : 2} };
+
+                var getXY = (int pos) => { return (x: (pos % width), y: (pos / width)); };
+
+                if (isBayer)
+                {
+                    image.Data = new float[image.Width*image.Height*3];
+                }
+                else
+                {
+                    image.Data = new float[outputDataSize];
+                }
+
+                int upTo = width * height * 2;
+                float avg = 0.0f;
+                int count = 0;
+                i += 2880;
+                for (int j = 0; j < upTo; j += 2)
+                {
+                    short raw = (short)((blob[j + i] << 8) | blob[j + i+1]);
+                    float value = (raw * bscale + bzero) / (float)ushort.MaxValue*50;
+                    
+                    avg = (value + (avg*count))/(count+1);
+                    count++;
+
+                    if (isBayer)
+                    {
+                        var pos = getXY(j / 2);
+
+                        var bayerOffset = bayerMatrix[(pos.x + bayerXOffset) % 2, (pos.y + bayerYOffset) % 2];
+
+                        var outputIndex = ((pos.x/2) * 3 + bayerOffset + (pos.y/2) * image.Width*3);
+
+                        if (image.Data[outputIndex] < float.Epsilon)
+                        {
+                            image.Data[outputIndex] = value;
+                        }
+                        else
+                        {
+                            image.Data[outputIndex] = 0.5f * (value + image.Data[outputIndex]);
+                        }
+                    }
+                    else
+                    {
+                        image.Data[j/2] = value;
                     }
                 }
-                if (block.Contains(" END ")) break;
+                Console.WriteLine($"Average pixel value is:{avg}");
+                if (isBayer || isCol)
+                {
+                    image.Type = ImageType.Color;
+                }
+                else
+                {
+                    image.Type = ImageType.Mono;
+                }
+
+                if (image.FitsHeader.ContainsKey("FILTER"))
+                {
+                    image.Filter = image.FitsHeader["FILTER"].value.Remove('\'').Trim();
+                }
+                else
+                {
+                    image.Filter = "OSC";
+                }
+
+                return image;
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                Console.WriteLine(ex.StackTrace);
+                return null;
             }
         }
     }

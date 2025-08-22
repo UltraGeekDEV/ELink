@@ -10,16 +10,14 @@ namespace ELink.Models.Data.Image
     public class ELinkImage
     {
         public Dictionary<string, FITSHeaderItem> FitsHeader { get; set; }
-        public int width { get; set; }
-        public int height { get; set; }
-        public ImageType type { get; set; }
-        public float[] data { get; set; }
-        public string filter { get; set; }
-    }
-    public enum ImageType
-    {
-        Mono,
-        Color,
-        PseudoMono
+        public int Width { get; set; }
+        public int Height { get; set; }
+        public ImageType Type { get; set; }
+        public float[] Data { get; set; }
+        public string Filter { get; set; }
+        public ELinkImage()
+        {
+            FitsHeader = new Dictionary<string, FITSHeaderItem>();
+        }
     }
 }
