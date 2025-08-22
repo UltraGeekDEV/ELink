@@ -11,7 +11,10 @@
     <Folder Include="Models\Hardware\Cameras\" />
     <Folder Include="Models\Hardware\Guiding\" />
     <Folder Include="Models\Hardware\SmartScope\" />
-    <Folder Include="Models\Utils\Comms\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EVent\EVent.csproj" />
   </ItemGroup>
 
 </Project>

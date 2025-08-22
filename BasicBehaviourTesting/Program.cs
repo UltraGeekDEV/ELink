@@ -1,7 +1,10 @@
-﻿using EVent.Connections;
+﻿using ELink.Interfaces.CompatLayers.INDI;
+using ELink.Models.Utils.Comms;
+using EVent.Connections;
 using EVent.Connections.Models;
 using EVent.Connections.Models.BaseBinaryConvertables;
 using EVent.Connections.TCP;
+using EVent.CoreFunctionality;
 using System.Buffers.Binary;
 using System.ComponentModel;
 using System.Net;
@@ -17,21 +20,16 @@ namespace BasicBehaviourTesting
     {
         static void Main(string[] args)
         {
-            
+            ConnectionInfo.EVentServer = "127.0.0.1";
+            ConnectionInfo.EVentPort = 5000;
 
-            Task.Delay(1000).Wait();
+            EventHub hub = new EventHub(new List<IServer>() { new TCPServer(IPAddress.Any, ConnectionInfo.EVentPort) });
+            hub.Setup();
 
-            Console.WriteLine("Recievers: A / B");
-            var clientA = TCPClientConnection<BinaryConvertableString>.ConnectAsReciever("A", "127.0.0.1", 5000);
-            clientA.OnDataRecieved(message =>
-            {
-                Console.WriteLine($"A recieved: {message}");
-            });
-            var clientB = TCPClientConnection<BinaryConvertableString>.ConnectAsReciever("B", "127.0.0.1", 5000);
-            clientB.OnDataRecieved(message =>
-            {
-                Console.WriteLine($"B recieved: {message}");
-            });
+            INDIParser parser = new INDIParser("192.168.0.68", 7624);
+            parser.Start();
+
+
             while (true) ;
         }
     }
