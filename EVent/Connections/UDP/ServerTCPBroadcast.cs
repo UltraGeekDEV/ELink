@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace EVent.Connections.UDP
 {
-    public class ServerBroadcast
+    public class ServerTCPBroadcast
     {
         public static int EVentTCPConenctionBroadcastPort = 8563;
         public static string EVentBroadcastGroup = "239.255.12.85";
@@ -22,7 +22,7 @@ namespace EVent.Connections.UDP
         private string ip;
         private string port;
 
-        public ServerBroadcast(string serverID, string ip, string port)
+        public ServerTCPBroadcast(string serverID, string ip, string port)
         {
             this.serverID = serverID;
             this.ip = ip;

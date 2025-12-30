@@ -11,6 +11,11 @@ namespace EVent.Connections.Models.BaseBinaryConvertables
     {
         public byte[] IP { get; set; }
         public byte[] Port { get; set; }
+
+        public BroadcastHandshake()
+        {
+            
+        }
         public BroadcastHandshake(string ip, string port)
         {
             IP = new byte[4];
@@ -23,8 +28,8 @@ namespace EVent.Connections.Models.BaseBinaryConvertables
             IP[3] = byte.Parse(splitParts[3]);
 
             ushort portNum = ushort.Parse(port);
-            Port[0] = (byte)(portNum & 0xFF); 
-            Port[1] = (byte)(portNum >> 8);
+            Port[0] = (byte)(portNum >> 8);
+            Port[1] = (byte)(portNum & 0xFF); 
         }
         public bool FromBytes(byte[] data)
         {
