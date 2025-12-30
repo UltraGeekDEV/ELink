@@ -11,5 +11,6 @@ namespace EVent.Connections
         Invalid,
         Handshake,
         Data,
+        BroadcastHandshake,
     }
 }

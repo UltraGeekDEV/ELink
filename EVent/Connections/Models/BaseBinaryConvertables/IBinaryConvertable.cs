@@ -8,7 +8,7 @@ namespace EVent.Connections.Models.BaseBinaryConvertables
 {
     public interface IBinaryConvertable
     {
-        public IBinaryConvertable FromBytes(byte[] data);
+        public bool FromBytes(byte[] data);
         public byte[] ToBytes();
     }
 }

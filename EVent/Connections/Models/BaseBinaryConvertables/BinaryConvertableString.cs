@@ -9,15 +9,15 @@ namespace EVent.Connections.Models.BaseBinaryConvertables
     public class BinaryConvertableString : IBinaryConvertable
     {
         public string Text { get; set; }
-        public IBinaryConvertable FromBytes(byte[] data)
+        public bool FromBytes(byte[] data)
         {
-            Text = Encoding.UTF8.GetString(data);
-            return this;
+            Text = Encoding.UTF32.GetString(data);
+            return true;
         }
 
         public byte[] ToBytes()
         {
-            return Encoding.UTF8.GetBytes(Text);
+            return Encoding.UTF32.GetBytes(Text);
         }
         public override string ToString()
         {

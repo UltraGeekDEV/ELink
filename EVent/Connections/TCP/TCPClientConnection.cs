@@ -98,9 +98,12 @@ namespace EVent.Connections.TCP
                         }
 
                         var objectRecieved = new T();
-                        objectRecieved.FromBytes(package.Data);
+                        bool sucessfull = objectRecieved.FromBytes(package.Data);
 
-                        OnDataRecievedEvent?.Invoke(objectRecieved);
+                        if (sucessfull)
+                        {
+                            OnDataRecievedEvent?.Invoke(objectRecieved);
+                        }
                     }
                 }
                 catch(IOException ioEx)

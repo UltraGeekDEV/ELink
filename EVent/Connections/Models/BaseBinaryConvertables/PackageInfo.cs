@@ -18,7 +18,7 @@ namespace EVent.Connections.Models.BaseBinaryConvertables
         {
             Data = new byte[0];
         }
-        public IBinaryConvertable FromBytes(byte[] data)
+        public bool FromBytes(byte[] data)
         {
             var stringLength = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(0, sizeof(int)));
             int startID = sizeof(int);
@@ -28,7 +28,7 @@ namespace EVent.Connections.Models.BaseBinaryConvertables
             type = (PackageType)data[startID];
             startID++;
             Data = data.AsSpan(startID).ToArray();
-            return this;
+            return true;
         }
         public static async Task<PackageInfo?> ReadPackage(Stream stream)
         {
@@ -65,7 +65,15 @@ namespace EVent.Connections.Models.BaseBinaryConvertables
                     return InvalidPackage;
                 }
                 var ret = new PackageInfo();
-                return (PackageInfo)ret.FromBytes(recievedData);
+                bool sucess = ret.FromBytes(recievedData);
+                if (sucess)
+                {
+                    return ret;
+                }
+                else
+                {
+                    return null;
+                }
             }
             catch (Exception ex)
             {
