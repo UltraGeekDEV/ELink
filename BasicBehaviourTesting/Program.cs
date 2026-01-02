@@ -23,12 +23,14 @@ namespace BasicBehaviourTesting
             ConnectionInfo.EVentServer = "127.0.0.1";
             ConnectionInfo.EVentPort = 5000;
 
-            EventHub hub = new EventHub(new List<IServer>() { new TCPServer(IPAddress.Any, ConnectionInfo.EVentPort) });
+            EventHub hub = new EventHub(new List<IServer>() { new TCPServer(IPAddress.Any, ConnectionInfo.EVentPort,"EVentTestServer") });
             hub.Setup();
 
-            INDIParser parser = new INDIParser("192.168.0.68", 7624);
-            parser.Start();
-
+            var testReciever = TCPClientConnection<BinaryConvertableString>.ConnectAsReciever("TestChannel1", "EVentTestServer");
+            testReciever.OnDataRecieved(x =>
+            {
+                Console.WriteLine(x);
+            });
 
             while (true) ;
         }

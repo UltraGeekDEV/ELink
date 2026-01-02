@@ -12,7 +12,7 @@ namespace EVent.Connections.UDP
 {
     public class ClientTCPDiscovery
     {
-        static IPEndPoint? GetTCPServer(string ServerID)
+        public static IPEndPoint? GetTCPServer(string ServerID)
         {
             UdpClient udpClient = new UdpClient();
             while (true)

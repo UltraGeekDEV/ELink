@@ -1,6 +1,7 @@
 ﻿using EVent.Comms;
 using EVent.Connections.Models;
 using EVent.Connections.Models.BaseBinaryConvertables;
+using EVent.Connections.UDP;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
@@ -73,6 +74,20 @@ namespace EVent.Connections.TCP
                 Debug.WriteLine("Error while sending data");
             }
         }
+        private bool RunClient(PackageInfo handshakePackage, string serverID)
+        {
+            var endpoint = ClientTCPDiscovery.GetTCPServer(serverID);
+            if (endpoint != null)
+            {
+                RunClient(handshakePackage,endpoint.Address.ToString(),endpoint.Port);
+                return true;
+            }
+            else
+            {
+                Debug.WriteLine("Couldn't find server or data recieved was corrupted");
+                return false;
+            }
+        }
         private async void RunClient(PackageInfo handshakePackage, string serverAdress, int serverPort)
         {
             while(IsAlive)
@@ -129,6 +144,15 @@ namespace EVent.Connections.TCP
             Task.Run(() => connection.RunClient(handshakePackage, serverAdress, serverPort));
             return connection;
         }
+        public static TCPClientConnection<T>? ConnectAsReciever(string EventID, string serverID)
+        {
+            var tcpClient = new TcpClient();
+            var connection = new TCPClientConnection<T>() { EventID = EventID, tcpClient = tcpClient, IsAlive = true };
+            var handshakePackage = new PackageInfo() { type = PackageType.Handshake, EventID = EventID };
+
+            Task.Run(() => connection.RunClient(handshakePackage, serverID));
+            return connection;
+        }
 
         public static TCPClientConnection<T>? ConnectAsTransmitter(string EventID, string serverAdress, int serverPort)
         {
@@ -137,6 +161,15 @@ namespace EVent.Connections.TCP
             var handshakePackage = new PackageInfo() { type = PackageType.Data, EventID = "null" };
 
             Task.Run(() => connection.RunClient(handshakePackage,serverAdress,serverPort));
+            return connection;
+        }
+        public static TCPClientConnection<T>? ConnectAsTransmitter(string EventID, string serverID)
+        {
+            var tcpClient = new TcpClient();
+            var connection = new TCPClientConnection<T>() { EventID = EventID, tcpClient = tcpClient, IsAlive = true };
+            var handshakePackage = new PackageInfo() { type = PackageType.Data, EventID = "null" };
+
+            Task.Run(() => connection.RunClient(handshakePackage, serverID));
             return connection;
         }
 

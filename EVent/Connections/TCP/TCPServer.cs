@@ -1,6 +1,8 @@
 ﻿using EVent.Comms;
 using EVent.Connections.Models;
 using EVent.Connections.Models.BaseBinaryConvertables;
+using EVent.Connections.UDP;
+using EVent.Utils;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
@@ -20,6 +22,7 @@ namespace EVent.Connections.TCP
         Action<string,IServer>? AddedEvent;
         Action<string,IServer>? RemovedEvent;
         TcpListener tcpListener;
+        List<ServerTCPBroadcast> discoveryBroadcastChannels;
         Task mainThread;
         bool IsAlive = true;
 
@@ -32,6 +35,17 @@ namespace EVent.Connections.TCP
         {
             this.listeningAdress = listeningAdress;
             this.port = port;
+        }
+        public TCPServer(IPAddress listeningAdress, int port,params string[] serverBroadcastedIDs) : this(listeningAdress, port)
+        {
+            IPAddress localIP = IPUtils.GetLocalIPv4();
+
+            discoveryBroadcastChannels = serverBroadcastedIDs.Select(x =>
+            {
+                var broadcast = new ServerTCPBroadcast(x, localIP.ToString(), port.ToString());
+                broadcast.Start();
+                return broadcast;
+            }).ToList();
         }
         public void Run()
         {

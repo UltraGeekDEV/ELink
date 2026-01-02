@@ -40,6 +40,9 @@ namespace EVent.Connections.Models.BaseBinaryConvertables
                 return false;
             }
 
+            IP = new byte[4];
+            Port = new byte[2];
+
             IP[0] = data[0];
             IP[1] = data[1];
             IP[2] = data[2];

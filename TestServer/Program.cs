@@ -17,16 +17,18 @@ namespace TestServer
     {
         static void Main(string[] args)
         {
-            var transmitterText = TCPClientConnection<CaptureFrame>.ConnectAsTransmitter(Events.CaptureFrame, "127.0.0.1", 5000);
+            var client = TCPClientConnection<BinaryConvertableString>.ConnectAsTransmitter("TestChannel1", "EVentTestServer");
 
             var clientTask = Task.Run(async () =>
             {
-                while (transmitterText.IsAlive)
+                while (client.IsAlive)
                 {
-                    Console.WriteLine("Give exposure and gain");
-                    var frame = new CaptureFrame() { exposureLength = double.Parse(Console.ReadLine()), gain = double.Parse(Console.ReadLine()) };
-                    await transmitterText.SendData(frame);
-                    Task.Delay(1000).Wait();
+                    Console.WriteLine("PleaseEnterMessage");
+                    string? text = Console.ReadLine();
+                    if (text != null)
+                    {
+                        client.SendData(text);
+                    }
                 }
             });
 
