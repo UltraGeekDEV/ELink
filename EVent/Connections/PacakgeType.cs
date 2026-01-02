@@ -9,8 +9,9 @@ namespace EVent.Connections
     public enum PackageType:byte
     {
         Invalid,
-        Handshake,
+        ConnectEvent,
         Data,
         BroadcastHandshake,
+        DisconnectEvent
     }
 }

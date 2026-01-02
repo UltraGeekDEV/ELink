@@ -28,29 +28,20 @@ namespace EVent.Connections.TCP
         {
             OnDataRecievedEvent += handler;
         }
-
+        public async Task UnhookEvent(string eventID)
+        {
+            var handshakePackage = new PackageInfo() { type = PackageType.DisconnectEvent, EventID = eventID };
+            await SendData(handshakePackage);
+        }
+        public async Task HookEvent(string eventID)
+        {
+            var handshakePackage = new PackageInfo() { type = PackageType.ConnectEvent, EventID = eventID };
+            await SendData(handshakePackage);
+        }
         public async Task SendData(T data)
         {
-            if (!IsAlive)
-            {
-                return;
-            }
-            try
-            {
-                var package = new PackageInfo() { EventID = EventID, type = PackageType.Data,Data = data.ToBytes()};
-                Stream stream = tcpClient.GetStream();
-                var packageData = package.ToBytes();
-                var messageLen = new byte[sizeof(int)];
-
-                BinaryPrimitives.WriteInt32LittleEndian(messageLen, packageData.Length);
-
-                await stream.WriteAsync(messageLen, 0, messageLen.Length);
-                await stream.WriteAsync(packageData, 0, packageData.Length);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine("Error while sending data");
-            }
+            var package = new PackageInfo() { EventID = EventID, type = PackageType.Data, Data = data.ToBytes() };
+            await SendData(package);
         }
         private async Task SendData(PackageInfo package)
         {
@@ -62,12 +53,7 @@ namespace EVent.Connections.TCP
             {
                 Stream stream = tcpClient.GetStream();
                 var packageData = package.ToBytes();
-                var messageLen = new byte[sizeof(int)];
-
-                BinaryPrimitives.WriteInt32LittleEndian(messageLen, packageData.Length);
-
-                await stream.WriteAsync(messageLen, 0, messageLen.Length);
-                await stream.WriteAsync(packageData, 0, packageData.Length);
+                await stream.WriteAsync(packageData);
             }
             catch (Exception ex)
             {
@@ -139,7 +125,7 @@ namespace EVent.Connections.TCP
         {
             var tcpClient = new TcpClient();
             var connection = new TCPClientConnection<T>() { EventID = EventID, tcpClient = tcpClient , IsAlive = true};
-            var handshakePackage = new PackageInfo() { type = PackageType.Handshake, EventID = EventID };
+            var handshakePackage = new PackageInfo() { type = PackageType.ConnectEvent, EventID = EventID };
 
             Task.Run(() => connection.RunClient(handshakePackage, serverAdress, serverPort));
             return connection;
@@ -148,7 +134,7 @@ namespace EVent.Connections.TCP
         {
             var tcpClient = new TcpClient();
             var connection = new TCPClientConnection<T>() { EventID = EventID, tcpClient = tcpClient, IsAlive = true };
-            var handshakePackage = new PackageInfo() { type = PackageType.Handshake, EventID = EventID };
+            var handshakePackage = new PackageInfo() { type = PackageType.ConnectEvent, EventID = EventID };
 
             Task.Run(() => connection.RunClient(handshakePackage, serverID));
             return connection;

@@ -10,6 +10,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace TestServer
 {
@@ -17,18 +18,20 @@ namespace TestServer
     {
         static void Main(string[] args)
         {
-            var client = TCPClientConnection<BinaryConvertableString>.ConnectAsTransmitter("TestChannel1", "EVentTestServer");
+            var clientA = TCPClientConnection<BinaryConvertableString>.ConnectAsTransmitter("A", "EVentTestServer");
+            var clientC = TCPClientConnection<BinaryConvertableString>.ConnectAsTransmitter("C|D", "EVentTestServer");
+            var clientD = TCPClientConnection<BinaryConvertableString>.ConnectAsTransmitter("D", "EVentTestServer");
 
             var clientTask = Task.Run(async () =>
             {
-                while (client.IsAlive)
+                while (clientA.IsAlive)
                 {
                     Console.WriteLine("PleaseEnterMessage");
-                    string? text = Console.ReadLine();
-                    if (text != null)
-                    {
-                        client.SendData(text);
-                    }
+                    Console.ReadLine();
+                    clientA.SendData(data: "\nThis is client A");
+                    Console.ReadLine();
+                    clientC.SendData(data: "This is client C|D");
+                    //clientD.SendData(data: "This is client D");
                 }
             });
 

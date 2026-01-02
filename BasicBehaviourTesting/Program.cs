@@ -26,8 +26,35 @@ namespace BasicBehaviourTesting
             EventHub hub = new EventHub(new List<IServer>() { new TCPServer(IPAddress.Any, ConnectionInfo.EVentPort,"EVentTestServer") });
             hub.Setup();
 
-            var testReciever = TCPClientConnection<BinaryConvertableString>.ConnectAsReciever("TestChannel1", "EVentTestServer");
+            var testReciever = TCPClientConnection<BinaryConvertableString>.ConnectAsReciever("A", "EVentTestServer");
+            var testRecieverB = TCPClientConnection<BinaryConvertableString>.ConnectAsReciever("A", "EVentTestServer");
+            int counter = 0;
             testReciever.OnDataRecieved(x =>
+            {
+                switch (counter)
+                {
+                    case 0: {
+                            testRecieverB.HookEvent("C|D").Wait();
+                            counter++;
+                            break;
+                        }
+                    //case 1:
+                    //    {
+                    //        testRecieverB.HookEvent("D").Wait();
+                    //        counter++;
+                    //        break;
+                    //    }
+                    default:
+                        {
+                            testRecieverB.UnhookEvent("C").Wait();
+                            testRecieverB.UnhookEvent("D").Wait();
+                            counter = 0;
+                            break;
+                        }
+                }
+            });
+
+            testRecieverB.OnDataRecieved(x =>
             {
                 Console.WriteLine(x);
             });
