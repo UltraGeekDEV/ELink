@@ -12,6 +12,10 @@ namespace EVent.Connections
         ConnectEvent,
         Data,
         BroadcastHandshake,
-        DisconnectEvent
+        DisconnectEvent,
+        ConnectInterconnect,
+        DisconnectInterconnect,
+        ConnectFromInterconnect,
+        DisconnectFromInterconnect,
     }
 }

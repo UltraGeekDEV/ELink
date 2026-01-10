@@ -11,19 +11,24 @@ namespace EVent.Connections.Models.BaseBinaryConvertables
     public class PackageInfo : IBinaryConvertable
     {
         public static uint MaxPackageSize = 202 * 1024 * 1024; // ~100Mp 16 bit mono+ 2Mb overhead
+        public string Sender { get; set; }
         public string EventID { get; set; }
         public PackageType type { get; set; }
         public byte[] Data { get; set; }
         public PackageInfo()
         {
             Data = new byte[0];
+            Sender = "";
         }
         public bool FromBytes(byte[] data)
         {
-            var stringLength = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(4, sizeof(int)));
+            var eventLength = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(4, sizeof(int)));
+            var senderLength = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(8 + eventLength, sizeof(int)));
             int startID = 8;
-            EventID = Encoding.UTF8.GetString(data.AsSpan(startID, stringLength));
-            startID += stringLength;
+            EventID = Encoding.UTF8.GetString(data.AsSpan(startID, eventLength));
+            startID += eventLength + 4;
+            Sender = Encoding.UTF8.GetString(data.AsSpan(startID, senderLength));
+            startID += senderLength;
 
             type = (PackageType)data[startID];
             startID++;
@@ -89,9 +94,12 @@ namespace EVent.Connections.Models.BaseBinaryConvertables
         public byte[] ToBytes()
         {
             var eventIDBytes = Encoding.UTF8.GetBytes(EventID);
-            var lengthBytes = new byte[4];
-            BinaryPrimitives.WriteInt32LittleEndian(lengthBytes, eventIDBytes.Length);
-            var packageLen = 4 + eventIDBytes.Length + Data.Length + 1;
+            var senderBytes = Encoding.UTF8.GetBytes(Sender);
+            var eventIDLenBytes = new byte[4];
+            var senderLenBytes = new byte[4];
+            BinaryPrimitives.WriteInt32LittleEndian(eventIDLenBytes, eventIDBytes.Length);
+            BinaryPrimitives.WriteInt32LittleEndian(senderLenBytes, senderBytes.Length);
+            var packageLen = 8 + eventIDBytes.Length + Data.Length + 1 + senderBytes.Length;
             if (packageLen > MaxPackageSize)
             {
                 throw new ExcessivePackageSizeException($"The package ({packageLen}) exceeds the maximum package size ({MaxPackageSize} bytes)");
@@ -99,11 +107,26 @@ namespace EVent.Connections.Models.BaseBinaryConvertables
             var packageLenBytes = new byte[4];
             BinaryPrimitives.WriteInt32LittleEndian(packageLenBytes, packageLen);
             var result = new byte[packageLen+4];
-            Buffer.BlockCopy(packageLenBytes, 0, result, 0, 4);
-            Buffer.BlockCopy(lengthBytes, 0, result, 4, 4);
-            Buffer.BlockCopy(eventIDBytes, 0, result, 8, eventIDBytes.Length);
-            result[8 + eventIDBytes.Length] = (byte)type;
-            Buffer.BlockCopy(Data, 0, result, 1 + 8 + eventIDBytes.Length, Data.Length);
+            int offset = 0;
+
+            Buffer.BlockCopy(packageLenBytes, 0, result, offset, 4);
+            offset += 4;
+
+            Buffer.BlockCopy(eventIDLenBytes, 0, result, offset, 4);
+            offset += 4;
+            Buffer.BlockCopy(eventIDBytes, 0, result, offset, eventIDBytes.Length);
+            offset += eventIDBytes.Length;
+
+            Buffer.BlockCopy(senderLenBytes, 0, result, offset, 4);
+            offset += 4;
+            Buffer.BlockCopy(senderBytes, 0, result, offset, senderBytes.Length);
+            offset += senderBytes.Length;
+
+            result[offset] = (byte)type;
+            offset += 1;
+
+            Buffer.BlockCopy(Data, 0, result, offset, Data.Length);
+
 
             return result;
         }

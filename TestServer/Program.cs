@@ -18,22 +18,28 @@ namespace TestServer
     {
         static void Main(string[] args)
         {
-            var clientA = TCPClientConnection<BinaryConvertableString>.ConnectAsTransmitter("A", "EVentTestServer");
-            var clientC = TCPClientConnection<BinaryConvertableString>.ConnectAsTransmitter("C|D", "EVentTestServer");
-            var clientD = TCPClientConnection<BinaryConvertableString>.ConnectAsTransmitter("D", "EVentTestServer");
+            EventHub hubB = new EventHub(new List<IServer> { new TCPServer(IPAddress.Any, 4500,"HubB") }, "HubB");
+            hubB.Setup();
 
-            var clientTask = Task.Run(async () =>
+            var client = TCPClientConnection.ConnectAsTransmitter("HubB");
+            var clientD = TCPClientConnection.ConnectAsTransmitter("HubB");
+
+            clientD.OnDataRecieved(x =>
             {
-                while (clientA.IsAlive)
-                {
-                    Console.WriteLine("PleaseEnterMessage");
-                    Console.ReadLine();
-                    clientA.SendData(data: "\nThis is client A");
-                    Console.ReadLine();
-                    clientC.SendData(data: "This is client C|D");
-                    //clientD.SendData(data: "This is client D");
-                }
+                var text = new BinaryConvertableString();
+                text.FromBytes(x.Data);
+                Console.WriteLine($"ClientD received: {text}");
             });
+
+            clientD.HookEvent("Test");
+
+            while (true)
+            {
+                Console.WriteLine("Write your message");
+                BinaryConvertableString message = Console.ReadLine();
+                var package = new PackageInfo() { EventID = "Test", type = PackageType.Data, Data = message.ToBytes(), Sender = "ClientB" };
+                client.SendData(package);
+            }
 
             while (true) ;
         }

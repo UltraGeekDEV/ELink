@@ -16,34 +16,28 @@ using System.Threading.Tasks;
 
 namespace EVent.Connections.TCP
 {
-    public class TCPClientConnection<T> : IClient where T : IBinaryConvertable,new()
+    public class TCPClientConnection
     {
-        private string EventID;
         private TcpClient tcpClient;
 
-        private Action<T> OnDataRecievedEvent;
+        private Action<PackageInfo> OnDataRecievedEvent;
         public bool IsAlive { get; private set; }
-
-        public void OnDataRecieved(Action<T> handler)
+        private object sendLock = new object();
+        public void OnDataRecieved(Action<PackageInfo> handler)
         {
             OnDataRecievedEvent += handler;
         }
-        public async Task UnhookEvent(string eventID)
+        public void UnhookEvent(string eventID)
         {
             var handshakePackage = new PackageInfo() { type = PackageType.DisconnectEvent, EventID = eventID };
-            await SendData(handshakePackage);
+            SendData(handshakePackage);
         }
-        public async Task HookEvent(string eventID)
+        public void HookEvent(string eventID)
         {
             var handshakePackage = new PackageInfo() { type = PackageType.ConnectEvent, EventID = eventID };
-            await SendData(handshakePackage);
+            SendData(handshakePackage);
         }
-        public async Task SendData(T data)
-        {
-            var package = new PackageInfo() { EventID = EventID, type = PackageType.Data, Data = data.ToBytes() };
-            await SendData(package);
-        }
-        private async Task SendData(PackageInfo package)
+        public void SendData(PackageInfo package)
         {
             if (!IsAlive)
             {
@@ -51,9 +45,13 @@ namespace EVent.Connections.TCP
             }
             try
             {
-                Stream stream = tcpClient.GetStream();
-                var packageData = package.ToBytes();
-                await stream.WriteAsync(packageData);
+                while(!tcpClient.Connected) { }
+                lock (sendLock)
+                {
+                    Stream stream = tcpClient.GetStream();
+                    var packageData = package.ToBytes();
+                    stream.Write(packageData);
+                }
             }
             catch (Exception ex)
             {
@@ -82,7 +80,7 @@ namespace EVent.Connections.TCP
                 {
                     await tcpClient.ConnectAsync(serverAdress, serverPort);
                     var stream = tcpClient.GetStream();
-                    await SendData(handshakePackage);
+                    SendData(handshakePackage);
                     while (IsAlive)
                     {
                         var package = await PackageInfo.ReadPackage(stream);
@@ -98,13 +96,7 @@ namespace EVent.Connections.TCP
                             continue;
                         }
 
-                        var objectRecieved = new T();
-                        bool sucessfull = objectRecieved.FromBytes(package.Data);
-
-                        if (sucessfull)
-                        {
-                            OnDataRecievedEvent?.Invoke(objectRecieved);
-                        }
+                        OnDataRecievedEvent?.Invoke(package);
                     }
                 }
                 catch(IOException ioEx)
@@ -121,38 +113,38 @@ namespace EVent.Connections.TCP
             }
 
         }
-        public static TCPClientConnection<T>? ConnectAsReciever(string EventID, string serverAdress, int serverPort)
+        public static TCPClientConnection ConnectAsReciever(string EventID, string serverAdress, int serverPort)
         {
             var tcpClient = new TcpClient();
-            var connection = new TCPClientConnection<T>() { EventID = EventID, tcpClient = tcpClient , IsAlive = true};
+            var connection = new TCPClientConnection() { tcpClient = tcpClient , IsAlive = true};
             var handshakePackage = new PackageInfo() { type = PackageType.ConnectEvent, EventID = EventID };
 
             Task.Run(() => connection.RunClient(handshakePackage, serverAdress, serverPort));
             return connection;
         }
-        public static TCPClientConnection<T>? ConnectAsReciever(string EventID, string serverID)
+        public static TCPClientConnection ConnectAsReciever(string EventID, string serverID)
         {
             var tcpClient = new TcpClient();
-            var connection = new TCPClientConnection<T>() { EventID = EventID, tcpClient = tcpClient, IsAlive = true };
+            var connection = new TCPClientConnection() { tcpClient = tcpClient, IsAlive = true };
             var handshakePackage = new PackageInfo() { type = PackageType.ConnectEvent, EventID = EventID };
 
             Task.Run(() => connection.RunClient(handshakePackage, serverID));
             return connection;
         }
 
-        public static TCPClientConnection<T>? ConnectAsTransmitter(string EventID, string serverAdress, int serverPort)
+        public static TCPClientConnection ConnectAsTransmitter(string serverAdress, int serverPort)
         {
             var tcpClient = new TcpClient();
-            var connection = new TCPClientConnection<T>() { EventID = EventID, tcpClient = tcpClient, IsAlive = true };
+            var connection = new TCPClientConnection() { tcpClient = tcpClient, IsAlive = true };
             var handshakePackage = new PackageInfo() { type = PackageType.Data, EventID = "null" };
 
             Task.Run(() => connection.RunClient(handshakePackage,serverAdress,serverPort));
             return connection;
         }
-        public static TCPClientConnection<T>? ConnectAsTransmitter(string EventID, string serverID)
+        public static TCPClientConnection ConnectAsTransmitter(string serverID)
         {
             var tcpClient = new TcpClient();
-            var connection = new TCPClientConnection<T>() { EventID = EventID, tcpClient = tcpClient, IsAlive = true };
+            var connection = new TCPClientConnection() { tcpClient = tcpClient, IsAlive = true };
             var handshakePackage = new PackageInfo() { type = PackageType.Data, EventID = "null" };
 
             Task.Run(() => connection.RunClient(handshakePackage, serverID));

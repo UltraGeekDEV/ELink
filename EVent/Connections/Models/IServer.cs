@@ -15,7 +15,9 @@ namespace EVent.Connections.Models
         public void OnEventAdded(Action<string, IServer> handler);
         public void OnEventRemoved(Action<string, IServer> handler);
         public Task SendData(PackageInfo data);
-        public void OnDataRecieved(Action<PackageInfo> handler);
+        public Task SendDataOnInterconnect(PackageInfo data);
+        public void OnDataRecieved(Action<PackageInfo, IServer> handler);
+        public void OnInterconnectDataRecieved(Action<PackageInfo, IServer> handler);
         public void Run();
         public void Stop();
     }

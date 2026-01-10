@@ -20,44 +20,53 @@ namespace BasicBehaviourTesting
     {
         static void Main(string[] args)
         {
-            ConnectionInfo.EVentServer = "127.0.0.1";
-            ConnectionInfo.EVentPort = 5000;
+            EventHub hubA = new EventHub(new List<IServer> { new TCPServer(IPAddress.Any,8594,"HubA")}, "HubA");
+            EventHub hubC = new EventHub(new List<IServer> { new TCPServer(IPAddress.Any, 8599, "HubC") }, "HubC");
+            hubA.Setup();
+            hubC.Setup();
+            Thread.Sleep(1000);
 
-            EventHub hub = new EventHub(new List<IServer>() { new TCPServer(IPAddress.Any, ConnectionInfo.EVentPort,"EVentTestServer") });
-            hub.Setup();
+            var client = TCPClientConnection.ConnectAsTransmitter("HubA");
+            var clientC = TCPClientConnection.ConnectAsTransmitter("HubC");
 
-            var testReciever = TCPClientConnection<BinaryConvertableString>.ConnectAsReciever("A", "EVentTestServer");
-            var testRecieverB = TCPClientConnection<BinaryConvertableString>.ConnectAsReciever("A", "EVentTestServer");
-            int counter = 0;
-            testReciever.OnDataRecieved(x =>
+            client.OnDataRecieved(x =>
             {
-                switch (counter)
-                {
-                    case 0: {
-                            testRecieverB.HookEvent("C|D").Wait();
-                            counter++;
-                            break;
-                        }
-                    //case 1:
-                    //    {
-                    //        testRecieverB.HookEvent("D").Wait();
-                    //        counter++;
-                    //        break;
-                    //    }
-                    default:
-                        {
-                            testRecieverB.UnhookEvent("C").Wait();
-                            testRecieverB.UnhookEvent("D").Wait();
-                            counter = 0;
-                            break;
-                        }
-                }
+                var data = new BinaryConvertableString();
+                data.FromBytes(x.Data);
+                Console.WriteLine($"ClientA via HubA: {data}");
+            });
+            clientC.OnDataRecieved(x =>
+            {
+                var data = new BinaryConvertableString();
+                data.FromBytes(x.Data);
+                Console.WriteLine($"ClientC via HubA then HubC: {data}");
             });
 
-            testRecieverB.OnDataRecieved(x =>
+            var connection = new PackageInfo() { EventID = "Connect HubA To HubB"
+                , type = PackageType.ConnectInterconnect
+                , Data = new TCPConnectionData() { IP = "127.0.0.1", Port = 4500 }.ToBytes()
+                , Sender = "ClientA" };
+
+            var connectionB = new PackageInfo()
             {
-                Console.WriteLine(x);
-            });
+                EventID = "Connect HubC To HubA"
+                ,
+                type = PackageType.ConnectInterconnect
+                ,
+                Data = new TCPConnectionData() { IP = "127.0.0.1", Port = 8594 }.ToBytes()
+                ,
+                Sender = "ClientC"
+            };
+
+            Thread.Sleep(1000);
+
+            client.SendData(connection);
+            clientC.SendData(connectionB);
+
+            Thread.Sleep(1000);
+
+            //client.HookEvent("Test");
+            clientC.HookEvent("Test");
 
             while (true) ;
         }

@@ -31,8 +31,8 @@ namespace ELink.Interfaces.CompatLayers.INDI.ParsingDevices
 
         public void Setup()
         {
-            var captureFrameEvent = TCPClientConnection<CaptureFrame>.ConnectAsReciever(Events.CaptureFrame, ConnectionInfo.EVentServer, ConnectionInfo.EVentPort);
-            captureFrameEvent.OnDataRecieved(INDICaptureFrame);
+            //var captureFrameEvent = TCPClientConnection<CaptureFrame>.ConnectAsReciever(Events.CaptureFrame, ConnectionInfo.EVentServer, ConnectionInfo.EVentPort);
+            //captureFrameEvent.OnDataRecieved(INDICaptureFrame);
         }
 
         private void INDICaptureFrame(CaptureFrame frame)

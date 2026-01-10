@@ -34,8 +34,9 @@ namespace EVent.Connections.UDP
         {
             mainThread = Task.Run(() =>
             {
-                UdpClient udpClient = new UdpClient(EVentTCPConenctionBroadcastPort);
+                UdpClient udpClient = new UdpClient();
                 udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, EVentTCPConenctionBroadcastPort));
                 udpClient.JoinMulticastGroup(broadcastGroup);
 
                 while (true)
