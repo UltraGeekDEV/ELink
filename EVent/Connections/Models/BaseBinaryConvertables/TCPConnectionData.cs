@@ -14,7 +14,7 @@ namespace EVent.Connections.Models.BaseBinaryConvertables
         {
             try
             {
-                string combined = Encoding.UTF32.GetString(data);
+                string combined = Encoding.UTF8.GetString(data);
                 var split = combined.Split(':');
                 IP = split[0];
                 Port = int.Parse(split[1]);
@@ -30,7 +30,7 @@ namespace EVent.Connections.Models.BaseBinaryConvertables
         {
             try
             {
-                return Encoding.UTF32.GetBytes($"{IP}:{Port}");
+                return Encoding.UTF8.GetBytes($"{IP}:{Port}");
             }
             catch
             {

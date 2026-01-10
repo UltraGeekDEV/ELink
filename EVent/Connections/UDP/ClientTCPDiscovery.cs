@@ -17,11 +17,17 @@ namespace EVent.Connections.UDP
             UdpClient udpClient = new UdpClient();
             while (true)
             {
-                udpClient.Send(new PackageInfo() { type = PackageType.BroadcastHandshake, EventID = ServerID, Data = new byte[0] }.ToBytes()
-                    , new IPEndPoint(IPAddress.Parse(ServerTCPBroadcast.EVentBroadcastGroup)
-                    , ServerTCPBroadcast.EVentTCPConenctionBroadcastPort));
-
                 var endpoint = new IPEndPoint(IPAddress.Any, ServerTCPBroadcast.EVentTCPConenctionBroadcastPort);
+                try
+                {
+                    udpClient.Send(new PackageInfo() { type = PackageType.BroadcastHandshake, EventID = ServerID, Data = new byte[0] }.ToBytes()
+                                        , new IPEndPoint(IPAddress.Parse(ServerTCPBroadcast.EVentBroadcastGroup)
+                                        , ServerTCPBroadcast.EVentTCPConenctionBroadcastPort));
+                }
+                catch
+                {
+                    Debug.WriteLine("Failed to send network discovery pacekt");
+                }
                 try
                 {
                     var bytes = udpClient.Receive(ref endpoint);

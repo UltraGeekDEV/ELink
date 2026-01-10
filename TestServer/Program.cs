@@ -37,7 +37,7 @@ namespace TestServer
             {
                 Console.WriteLine("Write your message");
                 BinaryConvertableString message = Console.ReadLine();
-                var package = new PackageInfo() { EventID = "Test", type = PackageType.Data, Data = message.ToBytes(), Sender = "ClientB" };
+                var package = new PackageInfo() { EventID = "Test", type = PackageType.Data, Data = message.ToBytes() };
                 client.SendData(package);
             }
 

@@ -135,19 +135,18 @@ namespace EVent.Connections.TCP
         private void HookEvents(TcpClient client, PackageInfo handhsake)
         {
             Debug.WriteLine($"\tReciever recieved on event: {handhsake.EventID}");
-            var listeningOnEvents = handhsake.EventID.Split('|').ToList();
             lock (eventLock)
             {
-                foreach (var eventID in listeningOnEvents)
+                if (!events.ContainsKey(handhsake.EventID))
                 {
-                    if (!events.ContainsKey(eventID))
-                    {
-                        events[eventID] = new HashSet<TcpClient>();
-                        AddedEvent?.Invoke(eventID, this);
-                    }
+                    events[handhsake.EventID] = new HashSet<TcpClient>();
+                    AddedEvent?.Invoke(handhsake.EventID, this);
 
-                    events[eventID].Add(client);
+                    var InterconenctDropped = new PackageInfo() { EventID = "EventAdded", type = PackageType.ServerAdminEvent, Data = ((BinaryConvertableString)handhsake.EventID).ToBytes() };
+                    DataRecieved?.Invoke(InterconenctDropped, null);
                 }
+
+                events[handhsake.EventID].Add(client);
             }
         }
         private void UnhookEvents(TcpClient client, IEnumerable<string> eventIDs)
@@ -164,6 +163,9 @@ namespace EVent.Connections.TCP
                         {
                             events.Remove(eventID);
                             RemovedEvent?.Invoke(eventID, this);
+
+                            var InterconenctDropped = new PackageInfo() { EventID = "EventRemoved", type = PackageType.ServerAdminEvent, Data = ((BinaryConvertableString)eventID).ToBytes() };
+                            DataRecieved?.Invoke(InterconenctDropped, null);
                         }
                     }
                 }
@@ -172,15 +174,12 @@ namespace EVent.Connections.TCP
 
         private async void RunClient(TcpClient client,string eventID)
         {
-            HashSet<string> events;
+            HashSet<string> events = new HashSet<string>();
             if (eventID != null)
             {
-                events = eventID.Split('|').Distinct().ToHashSet();
+                events.Add(eventID);
             }
-            else
-            {
-                events = new HashSet<string>();
-            }
+  
             try
             {
                 var stream = client.GetStream();
@@ -188,7 +187,6 @@ namespace EVent.Connections.TCP
                 PackageInfo? packageInfo = null;
                 while ((packageInfo = await PackageInfo.ReadPackage(stream)) != null)
                 {
-                    Debug.WriteLine("Message Recived");
                     switch (packageInfo.type)
                     {
                         case PackageType.ConnectEvent:
@@ -208,7 +206,7 @@ namespace EVent.Connections.TCP
 
                         case PackageType.DisconnectEvent:
                             {
-                                var eventsToUnhook = packageInfo.EventID.Split('|').Distinct().ToList();
+                                var eventsToUnhook = new List<string>() { packageInfo.EventID };
                                 UnhookEvents(client, eventsToUnhook);
                                 break;
                             }
@@ -224,7 +222,7 @@ namespace EVent.Connections.TCP
                                 }
                                 else
                                 {
-                                    return;
+                                    throw new Exception("Package was malformed");
                                 }
                             }
 
@@ -259,30 +257,22 @@ namespace EVent.Connections.TCP
 
         public async Task SendData(PackageInfo package)
         {
-            var clientSnaphsot = package.EventID.Split('|').SelectMany(EventID =>
+            List<TcpClient>? clientSnapshot = null;
+            lock (eventLock)
             {
-                List<TcpClient> ret;
-                lock (eventLock)
+                if (events.TryGetValue(package.EventID, out var clients))
                 {
-                    if (events.ContainsKey(EventID))
-                    {
-                       ret = events[EventID].ToList();
-                    }
-                    else
-                    {
-                        ret = new List<TcpClient>();
-                    }
+                    clientSnapshot = clients.ToList();
                 }
-
-                return ret;
-            }).Distinct().ToList();
+            }
+           
             
-            if (clientSnaphsot.Count == 0)
+            if (clientSnapshot == null || clientSnapshot.Count == 0)
             {
                 return;
             }
             var clientPackage = new PackageInfo() { Data = package.Data, type = package.type, EventID = package.EventID };
-            var tasks = clientSnaphsot.Select(async listeningClient => {
+            var tasks = clientSnapshot.Select(async listeningClient => {
                 try
                 {
                     var sendStream = listeningClient.GetStream();
@@ -297,30 +287,22 @@ namespace EVent.Connections.TCP
         }
         private async Task SendData(PackageInfo package,TcpClient receivedFrom)
         {
-            var clientSnaphsot = package.EventID.Split('|').SelectMany(EventID =>
+            List<TcpClient>? clientSnapshot = null;
+            lock (eventLock)
             {
-                List<TcpClient> ret;
-                lock (eventLock)
+                if (events.TryGetValue(package.EventID, out var clients))
                 {
-                    if (events.ContainsKey(EventID))
-                    {
-                        ret = events[EventID].ToList();
-                    }
-                    else
-                    {
-                        ret = new List<TcpClient>();
-                    }
+                    clientSnapshot = clients.ToList();
                 }
+            }
 
-                return ret;
-            }).Distinct().Where(x=> x!= receivedFrom).ToList();
 
-            if (clientSnaphsot.Count == 0)
+            if (clientSnapshot == null || clientSnapshot.Count == 0)
             {
                 return;
             }
             var clientPackage = new PackageInfo() { Data = package.Data, type = package.type, EventID = package.EventID };
-            var tasks = clientSnaphsot.Select(async listeningClient => {
+            var tasks = clientSnapshot.Select(async listeningClient => {
                 try
                 {
                     var sendStream = listeningClient.GetStream();
@@ -360,7 +342,6 @@ namespace EVent.Connections.TCP
                 return events.ContainsKey(eventID);
             }
         }
-
         public bool HasEvent(IEnumerable<string> events)
         {
             IEnumerable<string> existingEvents;
@@ -374,18 +355,18 @@ namespace EVent.Connections.TCP
         {
             try
             {
+
                 var stream = tcpClient.GetStream();
                 PackageInfo handshake = new PackageInfo() { Data = new byte[0], EventID = "EstablishInterconnect", type = PackageType.ConnectFromInterconnect };
                 stream.Write(handshake.ToBytes());
+
+                var InterconnectEstablished = new PackageInfo() { EventID = "InterconnectEstablished", type = PackageType.ServerAdminEvent };
+                DataRecieved?.Invoke(InterconnectEstablished, null);
+
                 while (tcpClient.Connected)
                 {
                     var package = await PackageInfo.ReadPackage(stream);
                     if (package == null)
-                    {
-                        Debug.WriteLine("Interconnect recieved package was null");
-                        continue;
-                    }
-                    if (package.type == PackageType.Invalid)
                     {
                         Debug.WriteLine("Interconnect recieved package was invalid");
                         continue;
@@ -396,6 +377,15 @@ namespace EVent.Connections.TCP
             }
             catch (IOException ioEx)
             {
+                var InterconenctDropped = new PackageInfo() { EventID = "InterconnectDropped", type = PackageType.ServerAdminEvent };
+                lock (interconnectLock)
+                {
+                    if (interconnectEvents.ContainsKey(tcpClient))
+                    {
+                        interconnectEvents.Remove(tcpClient);
+                    }
+                }
+                DataRecieved?.Invoke(InterconenctDropped, null);
                 Debug.WriteLine("Server connection forcibly closed");
                 IsAlive = false;
                 return;
@@ -415,15 +405,14 @@ namespace EVent.Connections.TCP
                 var stream = tcpClient.GetStream();
                 PackageInfo handshake = new PackageInfo() { Data = new byte[0], EventID = "EstablishInterconnect", type = PackageType.ConnectFromInterconnect };
                 stream.Write(handshake.ToBytes());
+
+                var InterconenctDropped = new PackageInfo() { EventID = "InterconnectEstablished", type = PackageType.ServerAdminEvent };
+                DataRecieved?.Invoke(InterconenctDropped, null);
+
                 while (tcpClient.Connected)
                 {
                     var package = await PackageInfo.ReadPackage(stream);
                     if (package == null)
-                    {
-                        Debug.WriteLine("Interconnect recieved package was null");
-                        continue;
-                    }
-                    if (package.type == PackageType.Invalid)
                     {
                         Debug.WriteLine("Interconnect recieved package was invalid");
                         continue;
@@ -434,13 +423,23 @@ namespace EVent.Connections.TCP
             }
             catch (IOException ioEx)
             {
-                Debug.WriteLine("Server connection forcibly closed");
+                var InterconenctDropped = new PackageInfo() {EventID="InterconnectDropped",type = PackageType.ServerAdminEvent};
+                lock (interconnectLock)
+                {
+                    if (interconnectEvents.ContainsKey(tcpClient))
+                    {
+                        interconnectEvents.Remove(tcpClient);
+                    }
+                }
+                DataRecieved?.Invoke(InterconenctDropped,null);
+
+                Debug.WriteLine("TCP Interconenct connection forcibly closed");
                 IsAlive = false;
                 return;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error while running client: {ex}");
+                Debug.WriteLine($"Error while running TCP interconnect: {ex}");
                 await Task.Delay(1000);
             }
         }
@@ -451,7 +450,6 @@ namespace EVent.Connections.TCP
                 case PackageType.ConnectFromInterconnect:
                 case PackageType.ConnectEvent:
                     {
-                        var eventIDs = package.EventID.Split('|').ToList();
                         lock (interconnectLock)
                         {
                             if (!interconnectEvents.ContainsKey(client))
@@ -459,12 +457,9 @@ namespace EVent.Connections.TCP
                                 interconnectEvents[client] = new HashSet<string>();
                             }
 
-                            foreach (var eventID in eventIDs)
+                            if (!interconnectEvents[client].Contains(package.EventID))
                             {
-                                if (!interconnectEvents[client].Contains(eventID))
-                                {
-                                    interconnectEvents[client].Add(eventID);
-                                }
+                                interconnectEvents[client].Add(package.EventID);
                             }
                         }
                         package.type = PackageType.ConnectEvent;
@@ -508,10 +503,11 @@ namespace EVent.Connections.TCP
             List<TcpClient> sendTo;
             lock (interconnectLock)
             {
-                sendTo = package.EventID.Split('|').SelectMany(eventID => 
-                interconnectEvents.Where(x => x.Key != recievedFrom &&(x.Value.Contains(eventID) 
-                || package.type != PackageType.Data))
-                       .Select(x => x.Key)).ToList();
+                sendTo =  
+                interconnectEvents.Where(x => x.Key != recievedFrom 
+                                                    && (x.Value.Contains(package.EventID) 
+                                                    || package.type != PackageType.Data))
+                       .Select(x => x.Key).ToList();
             }
 
             var data = package.ToBytes();
@@ -527,8 +523,9 @@ namespace EVent.Connections.TCP
             List<TcpClient> sendTo;
             lock (interconnectLock)
             {
-                sendTo = package.EventID.Split('|').SelectMany(eventID => interconnectEvents.Where(x => x.Value.Contains(eventID) || package.type != PackageType.Data)
-                        .Select(x => x.Key)).ToList();
+                sendTo =
+                interconnectEvents  .Where(x => x.Value.Contains(package.EventID)|| package.type != PackageType.Data)
+                                    .Select(x => x.Key).ToList();
             }
 
             var data = package.ToBytes();

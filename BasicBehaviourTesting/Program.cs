@@ -44,19 +44,14 @@ namespace BasicBehaviourTesting
 
             var connection = new PackageInfo() { EventID = "Connect HubA To HubB"
                 , type = PackageType.ConnectInterconnect
-                , Data = new TCPConnectionData() { IP = "127.0.0.1", Port = 4500 }.ToBytes()
-                , Sender = "ClientA" };
+                , Data = new TCPConnectionData() { IP = "127.0.0.1", Port = 4500 }.ToBytes()};
 
-            var connectionB = new PackageInfo()
-            {
+            var connectionB = new PackageInfo(){
                 EventID = "Connect HubC To HubA"
                 ,
                 type = PackageType.ConnectInterconnect
                 ,
-                Data = new TCPConnectionData() { IP = "127.0.0.1", Port = 8594 }.ToBytes()
-                ,
-                Sender = "ClientC"
-            };
+                Data = new TCPConnectionData() { IP = "127.0.0.1", Port = 8594 }.ToBytes()};
 
             Thread.Sleep(1000);
 

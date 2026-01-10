@@ -43,7 +43,7 @@ namespace EVent.CoreFunctionality
                 servers[server].Add(eventID);
             }
 
-            var removeEventPackage = new PackageInfo() { EventID = eventID, type = PackageType.ConnectEvent, Data = new byte[0], Sender = HubID };
+            var removeEventPackage = new PackageInfo() { EventID = eventID, type = PackageType.ConnectEvent, Data = new byte[0]};
 
             InterconnectDataReceived(removeEventPackage, null);
         }
@@ -55,7 +55,7 @@ namespace EVent.CoreFunctionality
                 servers[server].Remove(eventID);
             }
 
-            var removeEventPackage = new PackageInfo() { EventID = eventID , type = PackageType.DisconnectEvent, Data = new byte[0],Sender = HubID };
+            var removeEventPackage = new PackageInfo() { EventID = eventID , type = PackageType.DisconnectEvent, Data = new byte[0] };
 
             InterconnectDataReceived(removeEventPackage, null);
         }
@@ -76,14 +76,18 @@ namespace EVent.CoreFunctionality
                 return;
             }
 
-            foreach (var partner in serverList)
+            foreach (var client in serverList)
             {
-                lock (serverLocks[partner])
+                lock (serverLocks[client])
                 {
-                    partner.SendData(package);
+                    client.SendData(package);
                 }
             }
-            InterconnectDataReceived(package, null);
+
+            if (package.type != PackageType.ServerAdminEvent)
+            {
+                InterconnectDataReceived(package, null);
+            }
         }
         private void InterconnectDataReceived(PackageInfo package,IServer? server)
         {

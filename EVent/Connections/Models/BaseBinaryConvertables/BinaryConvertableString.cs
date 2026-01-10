@@ -11,13 +11,13 @@ namespace EVent.Connections.Models.BaseBinaryConvertables
         public string Text { get; set; }
         public bool FromBytes(byte[] data)
         {
-            Text = Encoding.UTF32.GetString(data);
+            Text = Encoding.UTF8.GetString(data);
             return true;
         }
 
         public byte[] ToBytes()
         {
-            return Encoding.UTF32.GetBytes(Text);
+            return Encoding.UTF8.GetBytes(Text);
         }
         public override string ToString()
         {
