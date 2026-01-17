@@ -20,24 +20,24 @@ namespace EVent.Connections.TCP
     {
         private TcpClient tcpClient;
 
-        private Action<PackageInfo> OnDataRecievedEvent;
+        private Action<Package> OnDataRecievedEvent;
         public bool IsAlive { get; private set; }
         private object sendLock = new object();
-        public void OnDataRecieved(Action<PackageInfo> handler)
+        public void OnDataRecieved(Action<Package> handler)
         {
             OnDataRecievedEvent += handler;
         }
         public void UnhookEvent(string eventID)
         {
-            var handshakePackage = new PackageInfo() { type = PackageType.DisconnectEvent, EventID = eventID };
+            var handshakePackage = new Package() { type = PackageType.DisconnectEvent, EventID = eventID };
             SendData(handshakePackage);
         }
         public void HookEvent(string eventID)
         {
-            var handshakePackage = new PackageInfo() { type = PackageType.ConnectEvent, EventID = eventID };
+            var handshakePackage = new Package() { type = PackageType.ConnectEvent, EventID = eventID };
             SendData(handshakePackage);
         }
-        public void SendData(PackageInfo package)
+        public void SendData(Package package)
         {
             if (!IsAlive)
             {
@@ -58,7 +58,7 @@ namespace EVent.Connections.TCP
                 Debug.WriteLine("Error while sending data");
             }
         }
-        private bool RunClient(PackageInfo handshakePackage, string serverID)
+        private bool RunClient(Package handshakePackage, string serverID)
         {
             var endpoint = ClientTCPDiscovery.GetTCPServer(serverID);
             if (endpoint != null)
@@ -72,7 +72,7 @@ namespace EVent.Connections.TCP
                 return false;
             }
         }
-        private async void RunClient(PackageInfo handshakePackage, string serverAdress, int serverPort)
+        private async void RunClient(Package handshakePackage, string serverAdress, int serverPort)
         {
             while(IsAlive)
             {
@@ -83,7 +83,7 @@ namespace EVent.Connections.TCP
                     SendData(handshakePackage);
                     while (IsAlive)
                     {
-                        var package = await PackageInfo.ReadPackage(stream);
+                        var package = await Package.ReadPackage(stream);
                         if (package == null)
                         {
                             Debug.WriteLine("Client recieved package was null");
@@ -117,7 +117,7 @@ namespace EVent.Connections.TCP
         {
             var tcpClient = new TcpClient();
             var connection = new TCPClientConnection() { tcpClient = tcpClient , IsAlive = true};
-            var handshakePackage = new PackageInfo() { type = PackageType.ConnectEvent, EventID = EventID };
+            var handshakePackage = new Package() { type = PackageType.ConnectEvent, EventID = EventID };
 
             Task.Run(() => connection.RunClient(handshakePackage, serverAdress, serverPort));
             return connection;
@@ -126,7 +126,7 @@ namespace EVent.Connections.TCP
         {
             var tcpClient = new TcpClient();
             var connection = new TCPClientConnection() { tcpClient = tcpClient, IsAlive = true };
-            var handshakePackage = new PackageInfo() { type = PackageType.ConnectEvent, EventID = EventID };
+            var handshakePackage = new Package() { type = PackageType.ConnectEvent, EventID = EventID };
 
             Task.Run(() => connection.RunClient(handshakePackage, serverID));
             return connection;
@@ -136,7 +136,7 @@ namespace EVent.Connections.TCP
         {
             var tcpClient = new TcpClient();
             var connection = new TCPClientConnection() { tcpClient = tcpClient, IsAlive = true };
-            var handshakePackage = new PackageInfo() { type = PackageType.Data, EventID = "null" };
+            var handshakePackage = new Package() { type = PackageType.Data, EventID = "null" };
 
             Task.Run(() => connection.RunClient(handshakePackage,serverAdress,serverPort));
             return connection;
@@ -145,7 +145,7 @@ namespace EVent.Connections.TCP
         {
             var tcpClient = new TcpClient();
             var connection = new TCPClientConnection() { tcpClient = tcpClient, IsAlive = true };
-            var handshakePackage = new PackageInfo() { type = PackageType.Data, EventID = "null" };
+            var handshakePackage = new Package() { type = PackageType.Data, EventID = "null" };
 
             Task.Run(() => connection.RunClient(handshakePackage, serverID));
             return connection;

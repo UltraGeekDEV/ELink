@@ -8,31 +8,38 @@ using System.Threading.Tasks;
 
 namespace EVent.Connections.Models.BaseBinaryConvertables
 {
-    public class PackageInfo : IBinaryConvertable
+    public class Package : IBinaryConvertable
     {
         public static uint MaxPackageSize = 202 * 1024 * 1024; // ~100Mp 16 bit mono+ 2Mb overhead
         public string EventID { get; set; }
         public PackageType type { get; set; }
         public byte[] Data { get; set; }
-        public PackageInfo()
+        public Package()
         {
+            EventID = string.Empty;
             Data = new byte[0];
         }
-        public bool FromBytes(byte[] data)
+        public Package(string EventID, PackageType type, IBinaryConvertable payload)
+        {
+            this.EventID = EventID;
+            this.type = type;
+            Data = payload.ToBytes();
+        }
+        public bool FromBytes(Span<byte> data)
         {
             int offset = 4;
-            var eventLength = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(offset, sizeof(int)));
+            var eventLength = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(offset, sizeof(int)));
             offset += 4;
             
-            EventID = Encoding.UTF8.GetString(data.AsSpan(offset, eventLength));
+            EventID = Encoding.UTF8.GetString(data.Slice(offset, eventLength));
             offset += eventLength;
 
             type = (PackageType)data[offset];
             offset++;
-            Data = data.AsSpan(offset).ToArray();
+            Data = data.Slice(offset).ToArray();
             return true;
         }
-        public static async Task<PackageInfo?> ReadPackage(Stream stream)
+        public static async Task<Package?> ReadPackage(Stream stream)
         {
             try
             {
@@ -74,7 +81,7 @@ namespace EVent.Connections.Models.BaseBinaryConvertables
                     Debug.WriteLine($"Message degenerate, recieved/expected: {totalRead} / {messageLength}");
                     return null;
                 }
-                var ret = new PackageInfo();
+                var ret = new Package();
                 bool sucess = ret.FromBytes(recievedData);
                 if (sucess)
                 {
@@ -126,6 +133,6 @@ namespace EVent.Connections.Models.BaseBinaryConvertables
             return result;
         }
 
-        public static PackageInfo InvalidPackage => new PackageInfo() { type = PackageType.Invalid };
+        public static Package InvalidPackage => new Package() { type = PackageType.Invalid };
     }
 }

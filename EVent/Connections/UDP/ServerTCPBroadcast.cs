@@ -45,7 +45,7 @@ namespace EVent.Connections.UDP
                     {
                         IPEndPoint remoteEndPoint = new IPEndPoint(IPAddress.Any, EVentTCPConenctionBroadcastPort);
                         byte[] data = udpClient.Receive(ref remoteEndPoint);
-                        PackageInfo info = new PackageInfo();
+                        Package info = new Package();
                         bool sucesfull = info.FromBytes(data);
 
                         if (sucesfull && info.type == PackageType.BroadcastHandshake)
@@ -68,7 +68,7 @@ namespace EVent.Connections.UDP
         {
             using (UdpClient sender = new UdpClient())
             {
-                PackageInfo package = new PackageInfo();
+                Package package = new Package();
                 package.type = PackageType.BroadcastHandshake;
                 package.EventID = serverID + "Callback";
                 package.Data = new BroadcastHandshake(ip, port).ToBytes();

@@ -17,6 +17,6 @@ namespace EVent.Connections
         DisconnectInterconnect,
         ConnectFromInterconnect,
         DisconnectFromInterconnect,
-        ServerAdminEvent,
+        ServerAdminEvent
     }
 }

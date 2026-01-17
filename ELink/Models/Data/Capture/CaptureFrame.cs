@@ -13,11 +13,11 @@ namespace ELink.Models.Data.Capture
         public double exposureLength;
         public double gain;
 
-        public bool FromBytes(byte[] data)
+        public bool FromBytes(Span<byte> data)
         {
-            exposureLength = BinaryPrimitives.ReadDoubleLittleEndian(data.AsSpan(0,sizeof(double)));
+            exposureLength = BinaryPrimitives.ReadDoubleLittleEndian(data.Slice(0,sizeof(double)));
 
-            gain = BinaryPrimitives.ReadDoubleLittleEndian(data.AsSpan(sizeof(double)));
+            gain = BinaryPrimitives.ReadDoubleLittleEndian(data.Slice(sizeof(double)));
 
             return true;
         }

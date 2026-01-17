@@ -15,18 +15,18 @@ namespace EVent.CoreFunctionality
     public class EventHub
     {
         public string HubID;
-        private Dictionary<IServer, HashSet<string>> servers = new Dictionary<IServer, HashSet<string>>();
-        private object eventsLock = new object();
+        private HashSet<IServer> servers = new HashSet<IServer>();
         private Dictionary<IServer,object> serverLocks;
+
         public EventHub(List<IServer> connections,string HubID)
         {
             this.HubID = HubID;
-            servers = connections.ToDictionary(x=>x,y=>new HashSet<string>());
+            servers = connections.ToHashSet();
             serverLocks = connections.Select(x => new { connection = x, lockObject = new object() }).ToDictionary(x => x.connection, x => x.lockObject);
         }
         public void Setup()
         {
-            foreach (var connection in servers.Keys)
+            foreach (var connection in servers)
             {
                 connection.OnEventAdded(AddEvent);
                 connection.OnEventRemoved(RemoveEvent);
@@ -38,79 +38,75 @@ namespace EVent.CoreFunctionality
         private void AddEvent(string eventID,IServer server)
         {
             Debug.WriteLine($"Added Event: {eventID}");
-            lock (eventsLock)
-            {
-                servers[server].Add(eventID);
-            }
-
-            var removeEventPackage = new PackageInfo() { EventID = eventID, type = PackageType.ConnectEvent, Data = new byte[0]};
-
-            InterconnectDataReceived(removeEventPackage, null);
+            var addEventPackage = new Package("EventAdded", PackageType.ServerAdminEvent,((BinaryConvertableString)eventID));
+            InterconnectDataReceived(addEventPackage, server, x => { });
         }
         private void RemoveEvent(string eventID, IServer server)
         {
             Debug.WriteLine($"Removed Event: {eventID}");
-            lock (eventsLock)
-            {
-                servers[server].Remove(eventID);
-            }
-
-            var removeEventPackage = new PackageInfo() { EventID = eventID , type = PackageType.DisconnectEvent, Data = new byte[0] };
-
-            InterconnectDataReceived(removeEventPackage, null);
+            var removeEventPackage = new Package("EventRemoved", PackageType.ServerAdminEvent, ((BinaryConvertableString)eventID));
+            InterconnectDataReceived(removeEventPackage, server, x => { });
         }
-        private void DataRecieved(PackageInfo package,IServer server)
+        private void DataRecieved(Package package,IServer? server,Action<Package> callback)
         {
             var eventList = package.EventID.Split('|').ToHashSet();
-            Dictionary<IServer, HashSet<string>> serversCopy;
+            HashSet<IServer> serversCopy = servers.Where(x=>x!=server).ToHashSet();
 
-            lock (eventsLock)
+            if (package.type != PackageType.ServerAdminEvent)
             {
-                serversCopy = servers.ToDictionary();
-
+                InterconnectDataReceived(package, null, x => { });
             }
-            var serverList = serversCopy.Where(x => x.Value.Any(y => eventList.Contains(y)) && x.Key != server).Select(x=>x.Key).ToList();
+            else
+            {
+                if (package.EventID == "QuerryEvents")
+                {
+                    var eventQuerryResponse = new Package(EventID: "ListEvents", PackageType.ServerAdminEvent, (BinaryCovnertableCollection<BinaryConvertableString>)servers.SelectMany(x => x.GetEvents().Select(x => (BinaryConvertableString)x)).ToList());
+                    server.SendData(eventQuerryResponse);
+                }
+            }
 
-            if (servers.Count == 0)
+            if (serversCopy.Count == 0)
             {
                 return;
             }
 
-            foreach (var client in serverList)
+            foreach (var client in serversCopy)
             {
                 lock (serverLocks[client])
                 {
                     client.SendData(package);
                 }
             }
-
-            if (package.type != PackageType.ServerAdminEvent)
-            {
-                InterconnectDataReceived(package, null);
-            }
         }
-        private void InterconnectDataReceived(PackageInfo package,IServer? server)
+
+        private void InterconnectDataReceived(Package package,IServer? server, Action<Package> callback)
         {
-            var eventList = package.EventID.Split('|').ToHashSet();
-            Dictionary<IServer, HashSet<string>> serversCopy;
-
-            lock (eventsLock)
+            if (package.type == PackageType.ServerAdminEvent)
             {
-                serversCopy = servers.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => new HashSet<string>(kvp.Value)
-                                );
+                if (package.EventID == "QuerryEvents")
+                {
+                    var eventQuerryResponse = new Package(EventID: "ListEvents", PackageType.ServerAdminEvent, (BinaryCovnertableCollection<BinaryConvertableString>)servers.SelectMany(x => x.GetEvents().Select(x => (BinaryConvertableString)x)).ToList());
+                    callback(eventQuerryResponse);
+                    return;
+                }
+                if (package.EventID == "EventAdded" || package.EventID == "EventRemoved")
+                {
 
-
+                }
+                else
+                {
+                    return;
+                }
             }
-            var serverList = serversCopy.Where(x => (x.Value.Any(y => eventList.Contains(y)) || package.type != PackageType.Data ||true) && x.Key != server).Select(x => x.Key).ToList();
 
-            if (serverList.Count == 0)
+            HashSet<IServer> serversCopy = servers.Where(x=>x != server).ToHashSet();
+
+            if (serversCopy.Count == 0)
             {
                 return;
             }
 
-            foreach (var partner in serverList)
+            foreach (var partner in serversCopy)
             {
                 lock (serverLocks[partner])
                 {

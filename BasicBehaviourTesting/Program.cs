@@ -24,7 +24,8 @@ namespace BasicBehaviourTesting
             EventHub hubC = new EventHub(new List<IServer> { new TCPServer(IPAddress.Any, 8599, "HubC") }, "HubC");
             hubA.Setup();
             hubC.Setup();
-            Thread.Sleep(1000);
+
+            //Thread.Sleep(1000);
 
             var client = TCPClientConnection.ConnectAsTransmitter("HubA");
             var clientC = TCPClientConnection.ConnectAsTransmitter("HubC");
@@ -42,25 +43,25 @@ namespace BasicBehaviourTesting
                 Console.WriteLine($"ClientC via HubA then HubC: {data}");
             });
 
-            var connection = new PackageInfo() { EventID = "Connect HubA To HubB"
-                , type = PackageType.ConnectInterconnect
+            var connection = new Package() { EventID = "InitiateInterconnect"
+                , type = PackageType.ServerAdminEvent
                 , Data = new TCPConnectionData() { IP = "127.0.0.1", Port = 4500 }.ToBytes()};
 
-            var connectionB = new PackageInfo(){
-                EventID = "Connect HubC To HubA"
+            var connectionB = new Package(){
+                EventID = "InitiateInterconnect"
                 ,
-                type = PackageType.ConnectInterconnect
+                type = PackageType.ServerAdminEvent
                 ,
                 Data = new TCPConnectionData() { IP = "127.0.0.1", Port = 8594 }.ToBytes()};
 
-            Thread.Sleep(1000);
+            Thread.Sleep(100);
 
             client.SendData(connection);
             clientC.SendData(connectionB);
 
-            Thread.Sleep(1000);
+            //Thread.Sleep(5000);
 
-            //client.HookEvent("Test");
+            client.HookEvent("Test");
             clientC.HookEvent("Test");
 
             while (true) ;

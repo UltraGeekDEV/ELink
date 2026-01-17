@@ -10,14 +10,13 @@ namespace EVent.Connections.Models
 {
     public interface IServer
     {
-        public bool HasEvent(string eventID);
-        public bool HasEvent(IEnumerable<string> events);
         public void OnEventAdded(Action<string, IServer> handler);
         public void OnEventRemoved(Action<string, IServer> handler);
-        public Task SendData(PackageInfo data);
-        public Task SendDataOnInterconnect(PackageInfo data);
-        public void OnDataRecieved(Action<PackageInfo, IServer> handler);
-        public void OnInterconnectDataRecieved(Action<PackageInfo, IServer> handler);
+        public Task SendData(Package data);
+        public Task SendDataOnInterconnect(Package data);
+        public void OnDataRecieved(Action<Package, IServer?, Action<Package>> handler);
+        public void OnInterconnectDataRecieved(Action<Package, IServer?, Action<Package>> handler);
+        public IEnumerable<string> GetEvents();
         public void Run();
         public void Stop();
     }

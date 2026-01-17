@@ -10,7 +10,7 @@ namespace EVent.Connections.Models.BaseBinaryConvertables
     {
         public string IP {  get; set; }
         public int Port { get; set; }
-        public bool FromBytes(byte[] data)
+        public bool FromBytes(Span<byte> data)
         {
             try
             {

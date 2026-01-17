@@ -20,7 +20,7 @@ namespace EVent.Connections.UDP
                 var endpoint = new IPEndPoint(IPAddress.Any, ServerTCPBroadcast.EVentTCPConenctionBroadcastPort);
                 try
                 {
-                    udpClient.Send(new PackageInfo() { type = PackageType.BroadcastHandshake, EventID = ServerID, Data = new byte[0] }.ToBytes()
+                    udpClient.Send(new Package() { type = PackageType.BroadcastHandshake, EventID = ServerID, Data = new byte[0] }.ToBytes()
                                         , new IPEndPoint(IPAddress.Parse(ServerTCPBroadcast.EVentBroadcastGroup)
                                         , ServerTCPBroadcast.EVentTCPConenctionBroadcastPort));
                 }
@@ -32,7 +32,7 @@ namespace EVent.Connections.UDP
                 {
                     var bytes = udpClient.Receive(ref endpoint);
 
-                    PackageInfo info = new PackageInfo();
+                    Package info = new Package();
                     bool sucesfullRead = info.FromBytes(bytes);
 
                     BroadcastHandshake serverData = new BroadcastHandshake();

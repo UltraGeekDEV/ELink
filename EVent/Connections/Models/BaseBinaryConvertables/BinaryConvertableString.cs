@@ -9,7 +9,11 @@ namespace EVent.Connections.Models.BaseBinaryConvertables
     public class BinaryConvertableString : IBinaryConvertable
     {
         public string Text { get; set; }
-        public bool FromBytes(byte[] data)
+        public BinaryConvertableString()
+        {
+            Text = string.Empty;
+        }
+        public bool FromBytes(Span<Byte> data)
         {
             Text = Encoding.UTF8.GetString(data);
             return true;

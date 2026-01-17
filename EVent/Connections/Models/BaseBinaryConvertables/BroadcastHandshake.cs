@@ -31,9 +31,9 @@ namespace EVent.Connections.Models.BaseBinaryConvertables
             Port[0] = (byte)(portNum >> 8);
             Port[1] = (byte)(portNum & 0xFF); 
         }
-        public bool FromBytes(byte[] data)
+        public bool FromBytes(Span<byte> data)
         {
-            uint crcCheck = Crc32Algorithm.Compute(data, 0, 6);
+            uint crcCheck = Crc32Algorithm.Compute(data.ToArray(), 0, 6);
             uint crc = (uint)(data[6] | data[7] << 8 | data[8] << 16 | data[9] << 24);
             if (crcCheck != crc)
             {
