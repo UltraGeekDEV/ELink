@@ -18,11 +18,11 @@ namespace TestServer
     {
         static void Main(string[] args)
         {
-            EventHub hubB = new EventHub(new List<IServer> { new TCPServer(IPAddress.Any, 4500,"HubB") }, "HubB");
+            EventHub hubB = new EventHub("HubB",new TCPServer(IPAddress.Any, 4500,"HubB"));
             hubB.Setup();
 
-            var client = TCPClientConnection.ConnectAsTransmitter("HubB");
-            var clientD = TCPClientConnection.ConnectAsTransmitter("HubB");
+            var client = TCPClientConnection.Connect("HubB");
+            var clientD = TCPClientConnection.Connect("HubB");
 
             clientD.OnDataRecieved(x =>
             {

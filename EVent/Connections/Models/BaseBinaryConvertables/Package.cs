@@ -25,6 +25,12 @@ namespace EVent.Connections.Models.BaseBinaryConvertables
             this.type = type;
             Data = payload.ToBytes();
         }
+        public Package(string EventID, PackageType type)
+        {
+            this.EventID = EventID;
+            this.type = type;
+            Data = new byte[0];
+        }
         public bool FromBytes(Span<byte> data)
         {
             int offset = 4;

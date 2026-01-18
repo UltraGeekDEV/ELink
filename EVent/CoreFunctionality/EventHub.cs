@@ -15,18 +15,16 @@ namespace EVent.CoreFunctionality
     public class EventHub
     {
         public string HubID;
-        private HashSet<IServer> servers = new HashSet<IServer>();
         private Dictionary<IServer,object> serverLocks;
 
-        public EventHub(List<IServer> connections,string HubID)
+        public EventHub(string HubID,params ICommsProtocol[] connections)
         {
             this.HubID = HubID;
-            servers = connections.ToHashSet();
-            serverLocks = connections.Select(x => new { connection = x, lockObject = new object() }).ToDictionary(x => x.connection, x => x.lockObject);
+            serverLocks = connections.Select(x => new { connection = (IServer)new EVentConnection(x), lockObject = new object() }).ToDictionary(x => x.connection, x => x.lockObject);
         }
         public void Setup()
         {
-            foreach (var connection in servers)
+            foreach (var connection in serverLocks.Keys)
             {
                 connection.OnEventAdded(AddEvent);
                 connection.OnEventRemoved(RemoveEvent);
@@ -50,7 +48,7 @@ namespace EVent.CoreFunctionality
         private void DataRecieved(Package package,IServer? server,Action<Package> callback)
         {
             var eventList = package.EventID.Split('|').ToHashSet();
-            HashSet<IServer> serversCopy = servers.Where(x=>x!=server).ToHashSet();
+            HashSet<IServer> serversCopy = serverLocks.Keys.Where(x=>x!=server).ToHashSet();
 
             if (package.type != PackageType.ServerAdminEvent)
             {
@@ -60,8 +58,8 @@ namespace EVent.CoreFunctionality
             {
                 if (package.EventID == "QuerryEvents")
                 {
-                    var eventQuerryResponse = new Package(EventID: "ListEvents", PackageType.ServerAdminEvent, (BinaryCovnertableCollection<BinaryConvertableString>)servers.SelectMany(x => x.GetEvents().Select(x => (BinaryConvertableString)x)).ToList());
-                    server.SendData(eventQuerryResponse);
+                    var eventQuerryResponse = new Package(EventID: "ListEvents", PackageType.ServerAdminEvent, (BinaryCovnertableCollection<BinaryConvertableString>)serverLocks.Keys.SelectMany(x => x.GetEvents().Select(x => (BinaryConvertableString)x)).ToList());
+                    callback(eventQuerryResponse);
                 }
             }
 
@@ -85,7 +83,7 @@ namespace EVent.CoreFunctionality
             {
                 if (package.EventID == "QuerryEvents")
                 {
-                    var eventQuerryResponse = new Package(EventID: "ListEvents", PackageType.ServerAdminEvent, (BinaryCovnertableCollection<BinaryConvertableString>)servers.SelectMany(x => x.GetEvents().Select(x => (BinaryConvertableString)x)).ToList());
+                    var eventQuerryResponse = new Package(EventID: "ListEvents", PackageType.ServerAdminEvent, (BinaryCovnertableCollection<BinaryConvertableString>)serverLocks.Keys.SelectMany(x => x.GetEvents().Select(x => (BinaryConvertableString)x)).ToList());
                     callback(eventQuerryResponse);
                     return;
                 }
@@ -99,7 +97,7 @@ namespace EVent.CoreFunctionality
                 }
             }
 
-            HashSet<IServer> serversCopy = servers.Where(x=>x != server).ToHashSet();
+            HashSet<IServer> serversCopy = serverLocks.Keys.Where(x=>x != server).ToHashSet();
 
             if (serversCopy.Count == 0)
             {

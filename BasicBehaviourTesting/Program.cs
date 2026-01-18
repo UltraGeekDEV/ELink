@@ -20,15 +20,13 @@ namespace BasicBehaviourTesting
     {
         static void Main(string[] args)
         {
-            EventHub hubA = new EventHub(new List<IServer> { new TCPServer(IPAddress.Any,8594,"HubA")}, "HubA");
-            EventHub hubC = new EventHub(new List<IServer> { new TCPServer(IPAddress.Any, 8599, "HubC") }, "HubC");
+            EventHub hubA = new EventHub("HubA",new TCPServer(IPAddress.Any,8594,"HubA"));
+            EventHub hubC = new EventHub("HubC",new TCPServer(IPAddress.Any, 8599, "HubC") );
             hubA.Setup();
             hubC.Setup();
 
-            //Thread.Sleep(1000);
-
-            var client = TCPClientConnection.ConnectAsTransmitter("HubA");
-            var clientC = TCPClientConnection.ConnectAsTransmitter("HubC");
+            var client = TCPClientConnection.Connect("HubA");
+            var clientC = TCPClientConnection.Connect("HubC");
 
             client.OnDataRecieved(x =>
             {
@@ -43,26 +41,30 @@ namespace BasicBehaviourTesting
                 Console.WriteLine($"ClientC via HubA then HubC: {data}");
             });
 
-            var connection = new Package() { EventID = "InitiateInterconnect"
+            var connection = new Package() { EventID = "CreateInterconnect"
                 , type = PackageType.ServerAdminEvent
                 , Data = new TCPConnectionData() { IP = "127.0.0.1", Port = 4500 }.ToBytes()};
 
             var connectionB = new Package(){
-                EventID = "InitiateInterconnect"
+                EventID = "CreateInterconnect"
                 ,
                 type = PackageType.ServerAdminEvent
                 ,
                 Data = new TCPConnectionData() { IP = "127.0.0.1", Port = 8594 }.ToBytes()};
 
-            Thread.Sleep(100);
-
             client.SendData(connection);
             clientC.SendData(connectionB);
 
-            //Thread.Sleep(5000);
-
-            client.HookEvent("Test");
+            //client.HookEvent("Test");
             clientC.HookEvent("Test");
+
+            while (true)
+            {
+                Console.WriteLine("Write your message");
+                BinaryConvertableString message = Console.ReadLine();
+                var package = new Package() { EventID = "Test", type = PackageType.Data, Data = message.ToBytes() };
+                client.SendData(package);
+            }
 
             while (true) ;
         }

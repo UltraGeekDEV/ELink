@@ -9,14 +9,8 @@ namespace EVent.Connections
     public enum PackageType:byte
     {
         Invalid,
-        ConnectEvent,
         Data,
         BroadcastHandshake,
-        DisconnectEvent,
-        ConnectInterconnect,
-        DisconnectInterconnect,
-        ConnectFromInterconnect,
-        DisconnectFromInterconnect,
         ServerAdminEvent
     }
 }
