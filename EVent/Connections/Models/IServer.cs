@@ -15,6 +15,7 @@ namespace EVent.Connections.Models
         public void OnEventRemoved(Action<string, IServer> handler);
         public Task SendData(Package data,QueuedClient? origin = null);
         public Task SendDataOnInterconnect(Package data, QueuedClient? origin = null);
+        public Task SendCommandOnInterconnect(Package data, QueuedClient? origin = null);
         public void OnDataRecieved(Action<Package, IServer?, Action<Package>> handler);
         public void OnInterconnectDataRecieved(Action<Package, IServer?, Action<Package>> handler);
         public IEnumerable<string> GetEvents();

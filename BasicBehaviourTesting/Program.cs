@@ -22,17 +22,18 @@ namespace BasicBehaviourTesting
         {
             EventHub hubA = new EventHub("HubA",new TCPServer(IPAddress.Any,8594,"HubA"));
             EventHub hubC = new EventHub("HubC",new TCPServer(IPAddress.Any, 8599, "HubC") );
+            Task.Delay(1000).Wait();
             hubA.Setup();
             hubC.Setup();
-
             var client = TCPClientConnection.Connect("HubA");
             var clientC = TCPClientConnection.Connect("HubC");
+            var clientE = TCPClientConnection.Connect("HubA");
 
-            client.OnDataRecieved(x =>
+            clientE.OnDataRecieved(x =>
             {
                 var data = new BinaryConvertableString();
                 data.FromBytes(x.Data);
-                Console.WriteLine($"ClientA via HubA: {data}");
+                Console.WriteLine($"ClientE via HubA: {data}");
             });
             clientC.OnDataRecieved(x =>
             {
@@ -55,7 +56,7 @@ namespace BasicBehaviourTesting
             client.SendData(connection);
             clientC.SendData(connectionB);
 
-            //client.HookEvent("Test");
+            //clientE.HookEvent("Test");
             clientC.HookEvent("Test");
 
             while (true)

@@ -30,7 +30,7 @@ namespace TestServer
                 text.FromBytes(x.Data);
                 Console.WriteLine($"ClientD received: {text}");
             });
-
+            
             clientD.HookEvent("Test");
 
             while (true)

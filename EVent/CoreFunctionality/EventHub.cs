@@ -37,7 +37,7 @@ namespace EVent.CoreFunctionality
         {
             Debug.WriteLine($"Added Event: {eventID}");
             var addEventPackage = new Package("EventAdded", PackageType.ServerAdminEvent,((BinaryConvertableString)eventID));
-            InterconnectDataReceived(addEventPackage, server, x => { });
+            SendCommand(addEventPackage, server, x => { });
         }
         private void RemoveEvent(string eventID, IServer server)
         {
@@ -76,7 +76,23 @@ namespace EVent.CoreFunctionality
                 }
             }
         }
+        private void SendCommand(Package package, IServer server, Action<Package> callback)
+        {
+            HashSet<IServer> serversCopy = serverLocks.Keys.Where(x => x != server).ToHashSet();
 
+            if (serversCopy.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var partner in serversCopy)
+            {
+                lock (serverLocks[partner])
+                {
+                    partner.SendCommandOnInterconnect(package);
+                }
+            }
+        }
         private void InterconnectDataReceived(Package package,IServer? server, Action<Package> callback)
         {
             if (package.type == PackageType.ServerAdminEvent)
@@ -89,7 +105,8 @@ namespace EVent.CoreFunctionality
                 }
                 if (package.EventID == "EventAdded" || package.EventID == "EventRemoved")
                 {
-
+                    SendCommand(package, server, callback);
+                    return;
                 }
                 else
                 {

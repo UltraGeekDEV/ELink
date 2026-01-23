@@ -114,7 +114,13 @@ namespace EVent.Connections
                                 }
                             case "UpgradeToInterconnect":
                                 {
-                                    interconnectClients.Add(client!, new HashSet<string>());
+                                    lock (interconnectLock)
+                                    {
+                                        if (!interconnectClients.ContainsKey(client!))
+                                        {
+                                            interconnectClients.Add(client!, new HashSet<string>());
+                                        }
+                                    }
                                     if (localClients.TryGetValue(client!, out var events))
                                     {
                                         foreach (var item in events)
@@ -122,7 +128,6 @@ namespace EVent.Connections
                                             HookInterconnect(client!, item);
                                         }
                                     }
-
                                     RemoveFromLocal(client!);
 
                                     await client!.Send(new Package("QuerryEvents", PackageType.ServerAdminEvent));
@@ -144,7 +149,7 @@ namespace EVent.Connections
                                     if ((payload = Deserialize<BinaryConvertableString>(package)) != null)
                                     {
                                         HookLocal(client!, payload);
-                                        AddedEvent?.Invoke(payload, this);
+                                        AddedEvent?.Invoke(payload, null);
                                     }
 
                                     break;
@@ -228,6 +233,15 @@ namespace EVent.Connections
                                     if ((payload = Deserialize<BinaryConvertableString>(package)) != null)
                                     {
                                         HookInterconnect(client, payload);
+                                        IEnumerable<QueuedClient> clients;
+                                        lock (interconnectLock)
+                                        {
+                                            clients = GetClients(client, interconnectClients.Keys.ToHashSet());
+                                        }
+                                        foreach (var partner in clients)
+                                        {
+                                            await partner.Send(package);
+                                        }
                                         AddedEvent?.Invoke(payload, this);
                                     }
 
@@ -286,6 +300,19 @@ namespace EVent.Connections
                 {
                     return;
                 }
+            }
+
+            foreach (var partner in sendTo)
+            {
+                await partner.Send(package);
+            }
+        }
+        public async Task SendCommandOnInterconnect(Package package, QueuedClient? recievedFrom = null)
+        {
+            HashSet<QueuedClient> sendTo;
+            lock (interconnectLock)
+            {
+                sendTo = GetClients(recievedFrom, interconnectClients.Keys.ToHashSet());
             }
 
             foreach (var partner in sendTo)
@@ -378,7 +405,14 @@ namespace EVent.Connections
                     localEvents[eventID].Add(client);
                 }
 
-                localClients[client].Add(eventID);
+                try
+                {
+                    localClients[client].Add(eventID);
+                }
+                catch
+                {
+                    Debug.WriteLine("Local wasn't initialized properly");
+                }
             }
         }
         private void UnhookLocal(QueuedClient client, string eventID)
@@ -404,6 +438,20 @@ namespace EVent.Connections
                 }
             }
         }
+        private async void SendEventAdded(string eventID,QueuedClient? client)
+        {
+            var addEventPackage = new Package("EventAdded", PackageType.ServerAdminEvent, ((BinaryConvertableString)eventID));
+            IEnumerable<QueuedClient> clients;
+            lock (interconnectLock)
+            {
+                clients = GetClients(client, interconnectClients.Keys.ToHashSet());
+            }
+            foreach (var partner in clients)
+            {
+                await partner.Send(addEventPackage);
+            }
+            AddedEvent?.Invoke(eventID, this);
+        }
         private void HookInterconnect(QueuedClient client, string eventID)
         {
             lock (interconnectLock)
@@ -411,13 +459,21 @@ namespace EVent.Connections
                 if (!interconnectEvents.ContainsKey(eventID))
                 {
                     interconnectEvents[eventID] = new HashSet<QueuedClient> { client };
+                    SendEventAdded(eventID,client);
                 }
                 else
                 {
                     interconnectEvents[eventID].Add(client);
+                    SendEventAdded(eventID, client);
                 }
 
-                interconnectClients[client].Add(eventID);
+                lock (interconnectLock)
+                {
+                    if (!interconnectClients.ContainsKey(client!))
+                    {
+                        interconnectClients.Add(client!, new HashSet<string>());
+                    }
+                }
             }
         }
         private void UnhookInterconnect(QueuedClient client, string eventID)
@@ -437,9 +493,16 @@ namespace EVent.Connections
                     }
                 }
 
-                if (interconnectClients[client].Contains(eventID))
+                try
                 {
-                    interconnectClients[client].Remove(eventID);
+                    if (interconnectClients[client].Contains(eventID))
+                    {
+                        interconnectClients[client].Remove(eventID);
+                    }
+                }
+                catch
+                {
+                    Debug.WriteLine("Interconnect not initialized properly");
                 }
             }
         }
