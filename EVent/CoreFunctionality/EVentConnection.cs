@@ -1,6 +1,6 @@
-﻿using EVent.Connections.Models;
+﻿using EVent.Connections;
+using EVent.Connections.Models;
 using EVent.Connections.Models.BaseBinaryConvertables;
-using EVent.Connections.TCP;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -9,7 +9,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace EVent.Connections
+namespace EVent.CoreFunctionality
 {
     internal class EVentConnection : IServer
     {
@@ -55,7 +55,7 @@ namespace EVent.Connections
         {
             protocolHandler.Run();
         }
-        private async void RunClient(QueuedClient client,bool isInterconnect)
+        private async void RunClient(QueuedClient client, bool isInterconnect)
         {
             try
             {
@@ -95,6 +95,7 @@ namespace EVent.Connections
             {
                 case PackageType.ServerAdminEvent:
                     {
+                        await SendData(package);
                         switch (package.EventID)
                         {
                             case "DisconnectClient":
@@ -107,8 +108,8 @@ namespace EVent.Connections
                                     var interconnect = await protocolHandler.EstablishInterconnect(package);
                                     if (interconnect != null)
                                     {
-                                        AcceptClient(interconnect,true);
-                                        await interconnect.Send(new Package("QuerryEvents", PackageType.ServerAdminEvent));
+                                        AcceptClient(interconnect, true);
+                                        await interconnect.Send(new Package("InterconnectRunning", PackageType.ServerAdminEvent));
                                     }
                                     break;
                                 }
@@ -130,7 +131,7 @@ namespace EVent.Connections
                                     }
                                     RemoveFromLocal(client!);
 
-                                    await client!.Send(new Package("QuerryEvents", PackageType.ServerAdminEvent));
+                                    await client!.Send(new Package("InterconnectRunning", PackageType.ServerAdminEvent));
                                     return true;
                                 }
                             case "EventRemoved":
@@ -209,6 +210,7 @@ namespace EVent.Connections
             {
                 case PackageType.ServerAdminEvent:
                     {
+                        await SendData(package);
                         switch (package.EventID)
                         {
                             case "DisconnectInterconnect":
@@ -223,7 +225,6 @@ namespace EVent.Connections
                                     if ((payload = Deserialize<BinaryConvertableString>(package)) != null)
                                     {
                                         UnhookInterconnect(client, payload);
-                                        RemovedEvent?.Invoke(payload, this);
                                     }
                                     break;
                                 }
@@ -233,16 +234,6 @@ namespace EVent.Connections
                                     if ((payload = Deserialize<BinaryConvertableString>(package)) != null)
                                     {
                                         HookInterconnect(client, payload);
-                                        IEnumerable<QueuedClient> clients;
-                                        lock (interconnectLock)
-                                        {
-                                            clients = GetClients(client, interconnectClients.Keys.ToHashSet());
-                                        }
-                                        foreach (var partner in clients)
-                                        {
-                                            await partner.Send(package);
-                                        }
-                                        AddedEvent?.Invoke(payload, this);
                                     }
 
                                     break;
@@ -264,8 +255,13 @@ namespace EVent.Connections
 
                                     foreach (var item in remoteEvents)
                                     {
-                                        HookInterconnect(client,item);
+                                        HookInterconnect(client, item);
                                     }
+                                    break;
+                                }
+                            case "InterconnectRunning":
+                                {
+                                    await client.Send(new Package("QuerryEvents", PackageType.ServerAdminEvent));
                                     break;
                                 }
                         }
@@ -292,7 +288,7 @@ namespace EVent.Connections
             HashSet<QueuedClient> sendTo;
             lock (interconnectLock)
             {
-                if (interconnectEvents.TryGetValue(package.EventID,out var partners))
+                if (interconnectEvents.TryGetValue(package.EventID, out var partners))
                 {
                     sendTo = GetClients(recievedFrom, partners);
                 }
@@ -335,12 +331,12 @@ namespace EVent.Connections
         {
             AcceptClient(client, false);
         }
-        private void AcceptClient(QueuedClient client,bool interconnect)
+        private void AcceptClient(QueuedClient client, bool interconnect)
         {
-            localClients.Add(client,new HashSet<string>());
+            localClients.Add(client, new HashSet<string>());
             RunClient(client, interconnect);
         }
-        private T? Deserialize<T>(Package package) where T : IBinaryConvertable,new()
+        private T? Deserialize<T>(Package package) where T : IBinaryConvertable, new()
         {
             T item = new T();
             if (item.FromBytes(package.Data))
@@ -356,7 +352,7 @@ namespace EVent.Connections
         {
             lock (localEvents)
             {
-                if (localClients.TryGetValue(client,out var clientEvents))
+                if (localClients.TryGetValue(client, out var clientEvents))
                 {
                     foreach (var item in clientEvents)
                     {
@@ -365,6 +361,7 @@ namespace EVent.Connections
                         if (localEvents[item].Count == 0)
                         {
                             localEvents.Remove(item);
+                            SendEventRemoved(item, client);
                         }
                     }
 
@@ -385,6 +382,7 @@ namespace EVent.Connections
                         if (interconnectEvents[item].Count == 0)
                         {
                             interconnectEvents.Remove(item);
+                            SendEventRemoved(item, client);
                         }
                     }
 
@@ -392,7 +390,7 @@ namespace EVent.Connections
                 }
             }
         }
-        private void HookLocal(QueuedClient client,string eventID)
+        private void HookLocal(QueuedClient client, string eventID)
         {
             lock (localLock)
             {
@@ -438,9 +436,9 @@ namespace EVent.Connections
                 }
             }
         }
-        private async void SendEventAdded(string eventID,QueuedClient? client)
+        private async void SendEventAdded(string eventID, QueuedClient? client)
         {
-            var addEventPackage = new Package("EventAdded", PackageType.ServerAdminEvent, ((BinaryConvertableString)eventID));
+            var addEventPackage = new Package("EventAdded", PackageType.ServerAdminEvent, (BinaryConvertableString)eventID);
             IEnumerable<QueuedClient> clients;
             lock (interconnectLock)
             {
@@ -451,6 +449,21 @@ namespace EVent.Connections
                 await partner.Send(addEventPackage);
             }
             AddedEvent?.Invoke(eventID, this);
+            await SendData(addEventPackage, client);
+        }
+        private async void SendEventRemoved(string eventID, QueuedClient? client)
+        {
+            var removeEventPackage = new Package("EventRemoved", PackageType.ServerAdminEvent, (BinaryConvertableString)eventID);
+            IEnumerable<QueuedClient> clients;
+            lock (interconnectLock)
+            {
+                clients = GetClients(client, interconnectClients.Keys.ToHashSet());
+            }
+            foreach (var partner in clients)
+            {
+                await partner.Send(removeEventPackage);
+            }
+            RemovedEvent?.Invoke(eventID, this);
         }
         private void HookInterconnect(QueuedClient client, string eventID)
         {
@@ -459,7 +472,7 @@ namespace EVent.Connections
                 if (!interconnectEvents.ContainsKey(eventID))
                 {
                     interconnectEvents[eventID] = new HashSet<QueuedClient> { client };
-                    SendEventAdded(eventID,client);
+                    SendEventAdded(eventID, client);
                 }
                 else
                 {
@@ -489,6 +502,7 @@ namespace EVent.Connections
                         if (interconnectEvents[eventID].Count == 0)
                         {
                             interconnectEvents.Remove(eventID);
+                            SendEventRemoved(eventID, client);
                         }
                     }
                 }

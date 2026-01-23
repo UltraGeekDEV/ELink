@@ -10,7 +10,7 @@ using System.Text;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
-namespace EVent.Connections.TCP
+namespace EVent.CoreFunctionality
 {
     public class QueuedClient
     {
@@ -44,20 +44,30 @@ namespace EVent.Connections.TCP
 
         private async Task EmptyQueue()
         {
-            while (loopRunning)
+            try
             {
-                var package = await sendCommandQueue.Reader.ReadAsync();
-                try
+                while (loopRunning)
                 {
-                    await client!.Send(package.ToBytes());
-                }
-                catch(Exception ex)
-                {
-                    Debug.WriteLine($"Exception while sending data: {ex}");
-                    break;
+                    var package = await sendCommandQueue.Reader.ReadAsync();
+                    try
+                    {
+                        await client!.Send(package.ToBytes());
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Exception while sending data: {ex}");
+                        break;
+                    }
                 }
             }
-            client!.Close();
+            catch
+            {
+
+            }
+            finally
+            {
+                client!.Close();
+            }
         }
         public async Task<Package?> ReadPackage()
         {

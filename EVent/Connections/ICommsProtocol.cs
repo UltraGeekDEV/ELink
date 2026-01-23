@@ -1,5 +1,5 @@
 ﻿using EVent.Connections.Models.BaseBinaryConvertables;
-using EVent.Connections.TCP;
+using EVent.CoreFunctionality;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

@@ -16,10 +16,40 @@ namespace TestServer
 {
     internal class Program
     {
+        private static string MeasureTime(DateTime startTime)
+        {
+            var delta = DateTime.Now - startTime;
+            return $"{(int)delta.TotalMilliseconds}.{delta.Microseconds}";
+        }
         static void Main(string[] args)
         {
             EventHub hubB = new EventHub("HubB",new TCPServer(IPAddress.Any, 4500,"HubB"));
             hubB.Setup();
+
+            var clientE = TCPClientConnection.Connect("HubB");
+            var startTime = DateTime.Now;
+
+            clientE.OnDataRecieved(x =>
+            {
+                var data = new BinaryConvertableString();
+                if (x.Data.Length == 0)
+                {
+                    Console.WriteLine($"{MeasureTime(startTime)} HubB: {x.EventID}");
+                }
+                else if (data.FromBytes(x.Data))
+                {
+                    Console.WriteLine($"{MeasureTime(startTime)} HubB: {x.EventID} : {data}");
+                }
+                else
+                {
+                    var connectionData = new TCPConnectionData();
+                    Console.WriteLine($"{MeasureTime(startTime)} HubB: {x.EventID} : {connectionData.IP}:{connectionData.Port}");
+                }
+            });
+            clientE.HookEvent("EventRemoved");
+            clientE.HookEvent("EventAdded");
+            clientE.HookEvent("CreateInterconnect");
+            clientE.HookEvent("UpgradeToInterconnect");
 
             var client = TCPClientConnection.Connect("HubB");
             var clientD = TCPClientConnection.Connect("HubB");
@@ -30,7 +60,13 @@ namespace TestServer
                 text.FromBytes(x.Data);
                 Console.WriteLine($"ClientD received: {text}");
             });
-            
+
+            //Task.Run(() =>
+            //{
+            //    Task.Delay(10000).Wait();
+            //    clientD.Stop();
+            //});
+
             clientD.HookEvent("Test");
 
             while (true)
@@ -40,8 +76,6 @@ namespace TestServer
                 var package = new Package() { EventID = "Test", type = PackageType.Data, Data = message.ToBytes() };
                 client.SendData(package);
             }
-
-            while (true) ;
         }
     }
 }

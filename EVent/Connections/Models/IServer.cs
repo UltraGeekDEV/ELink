@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using EVent.Comms;
 using EVent.Connections.Models.BaseBinaryConvertables;
-using EVent.Connections.TCP;
+using EVent.CoreFunctionality;
 
 namespace EVent.Connections.Models
 {

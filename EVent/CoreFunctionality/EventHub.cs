@@ -42,8 +42,8 @@ namespace EVent.CoreFunctionality
         private void RemoveEvent(string eventID, IServer server)
         {
             Debug.WriteLine($"Removed Event: {eventID}");
-            var removeEventPackage = new Package("EventRemoved", PackageType.ServerAdminEvent, ((BinaryConvertableString)eventID));
-            InterconnectDataReceived(removeEventPackage, server, x => { });
+            var addEventPackage = new Package("EventRemoved", PackageType.ServerAdminEvent, ((BinaryConvertableString)eventID));
+            SendCommand(addEventPackage, server, x => { });
         }
         private void DataRecieved(Package package,IServer? server,Action<Package> callback)
         {

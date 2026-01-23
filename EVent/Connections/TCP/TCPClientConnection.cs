@@ -2,6 +2,7 @@
 using EVent.Connections.Models;
 using EVent.Connections.Models.BaseBinaryConvertables;
 using EVent.Connections.UDP;
+using EVent.CoreFunctionality;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
@@ -114,6 +115,7 @@ namespace EVent.Connections.TCP
 
         public void Stop()
         {
+            SendData(new Package("DisconnectClient", PackageType.ServerAdminEvent));
             IsAlive = false;
         }
 

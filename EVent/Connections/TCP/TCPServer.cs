@@ -2,6 +2,7 @@
 using EVent.Connections.Models;
 using EVent.Connections.Models.BaseBinaryConvertables;
 using EVent.Connections.UDP;
+using EVent.CoreFunctionality;
 using EVent.Utils;
 using System;
 using System.Buffers.Binary;
