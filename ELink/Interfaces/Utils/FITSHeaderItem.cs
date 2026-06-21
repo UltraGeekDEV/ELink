@@ -1,14 +1,23 @@
-﻿using System;
+﻿using EVent.Connections.Models.BaseBinaryConvertables;
+using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices.Marshalling;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace ELink.Interfaces.Utils
 {
-    public class FITSHeaderItem
+    public class FITSHeaderItem : IBinaryConvertable
     {
+        public FITSHeaderItem() { }
         public FITSHeaderItem(string block)
+        {
+            SetData(block);
+        }
+
+        private void SetData(string block)
         {
             var items = block.Split('=', '/');
             key = items[0].Trim();
@@ -19,6 +28,17 @@ namespace ELink.Interfaces.Utils
         public string key {  get; set; }
         public string value { get; set; }
         public string comment { get; set; }
+
+        public bool FromBytes(Span<byte> data)
+        {
+            BinaryConvertableString item = new BinaryConvertableString();
+            if (item.FromBytes(data))
+            {
+                SetData(item);
+                return true;
+            }
+            return false;
+        }
 
         public string GetFitsHeaderItem()
         {
@@ -37,6 +57,11 @@ namespace ELink.Interfaces.Utils
             ret += comment;
             ret = ret.PadRight(80);
             return ret;
+        }
+
+        public byte[] ToBytes()
+        {
+            return ((BinaryConvertableString)$"{key}={value}/{comment}").ToBytes();
         }
     }
 }

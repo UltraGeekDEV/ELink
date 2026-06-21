@@ -21,11 +21,11 @@ namespace EVent.Connections.TCP
     {
         private QueuedClient client;
 
-        private Action<Package>? OnDataRecievedEvent;
+        private Action<Package>? OnDataReceivedEvent;
         public bool IsAlive { get; private set; }
-        public void OnDataRecieved(Action<Package> handler)
+        public void OnDataReceived(Action<Package> handler)
         {
-            OnDataRecievedEvent += handler;
+            OnDataReceivedEvent += handler;
         }
         public void UnhookEvent(string eventID)
         {
@@ -56,7 +56,7 @@ namespace EVent.Connections.TCP
             }
             else
             {
-                Debug.WriteLine("Couldn't find server or data recieved was corrupted");
+                Debug.WriteLine("Couldn't find server or data received was corrupted");
                 return false;
             }
         }
@@ -73,17 +73,17 @@ namespace EVent.Connections.TCP
                     var package = await client.ReadPackage();
                     if (package == null)
                     {
-                        Debug.WriteLine("Client recieved package was null");
+                        Debug.WriteLine("Client received package was null");
                         IsAlive = false;
                         return;
                     }
                     if (package.type == PackageType.Invalid)
                     {
-                        Debug.WriteLine("Client recieved package was invalid");
+                        Debug.WriteLine("Client received package was invalid");
                         continue;
                     }
 
-                    OnDataRecievedEvent?.Invoke(package);
+                    OnDataReceivedEvent?.Invoke(package);
                 }
             }
             catch (IOException ioEx)

@@ -29,7 +29,7 @@ namespace TestServer
             var clientE = TCPClientConnection.Connect("HubB");
             var startTime = DateTime.Now;
 
-            clientE.OnDataRecieved(x =>
+            clientE.OnDataReceived(x =>
             {
                 var data = new BinaryConvertableString();
                 if (x.Data.Length == 0)
@@ -43,7 +43,7 @@ namespace TestServer
                 else
                 {
                     var connectionData = new TCPConnectionData();
-                    Console.WriteLine($"{MeasureTime(startTime)} HubB: {x.EventID} : {connectionData.IP}:{connectionData.Port}");
+                    Console.WriteLine($"{MeasureTime(startTime)} HubB: {x.EventID} : {connectionData.TargetIP}:{connectionData.TargetPort}");
                 }
             });
             clientE.HookEvent("EventRemoved");
@@ -54,7 +54,7 @@ namespace TestServer
             var client = TCPClientConnection.Connect("HubB");
             var clientD = TCPClientConnection.Connect("HubB");
 
-            clientD.OnDataRecieved(x =>
+            clientD.OnDataReceived(x =>
             {
                 var text = new BinaryConvertableString();
                 text.FromBytes(x.Data);

@@ -67,28 +67,28 @@ namespace EVent.Connections.Models.BaseBinaryConvertables
 
                 int messageLength = payloadLength + 4;
 
-                var recievedData = new byte[messageLength];
-                recievedData[0] = buffer[0];
-                recievedData[1] = buffer[1];
-                recievedData[2] = buffer[2];
-                recievedData[3] = buffer[3];
+                var receivedData = new byte[messageLength];
+                receivedData[0] = buffer[0];
+                receivedData[1] = buffer[1];
+                receivedData[2] = buffer[2];
+                receivedData[3] = buffer[3];
                 totalRead += 4;
 
                 while (totalRead < messageLength)
                 {
-                    int bytesRead = await stream.ReadAsync(recievedData, totalRead, messageLength - totalRead);
+                    int bytesRead = await stream.ReadAsync(receivedData, totalRead, messageLength - totalRead);
                     if (bytesRead == 0)
                         return null;
                     totalRead += bytesRead;
                 }
 
-                if (recievedData.Length != messageLength)
+                if (receivedData.Length != messageLength)
                 {
-                    Debug.WriteLine($"Message degenerate, recieved/expected: {totalRead} / {messageLength}");
+                    Debug.WriteLine($"Message degenerate, received/expected: {totalRead} / {messageLength}");
                     return null;
                 }
                 var ret = new Package();
-                bool sucess = ret.FromBytes(recievedData);
+                bool sucess = ret.FromBytes(receivedData);
                 if (sucess)
                 {
                     return ret;

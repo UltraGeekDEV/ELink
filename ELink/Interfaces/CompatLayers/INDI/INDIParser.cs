@@ -1,4 +1,7 @@
 ﻿using ELink.Interfaces.CompatLayers.INDI.ParsingDevices;
+using EVent.Connections;
+using EVent.Connections.Models.BaseBinaryConvertables;
+using EVent.Connections.TCP;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -17,7 +20,7 @@ namespace ELink.Interfaces.CompatLayers.INDI
         private Stream stream;
         private string serverAdress;
         private int port;
-
+        private TCPClientConnection sendDebugToServer;
 
         private Dictionary<string, List<XElement>> deviceData = new Dictionary<string, List<XElement>>();
         private Dictionary<string, IINDIDevice> devices = new Dictionary<string, IINDIDevice>();
@@ -56,6 +59,10 @@ namespace ELink.Interfaces.CompatLayers.INDI
         }
         private async Task Run()
         {
+            sendDebugToServer = TCPClientConnection.Connect("E-Link hub");
+
+            await Task.Delay(100);
+
             stream = tcpClient.GetStream();
 
             SendCommand("<getProperties version=\"1.7\"/>\n");
@@ -85,7 +92,7 @@ namespace ELink.Interfaces.CompatLayers.INDI
 
                         if (knowItem != null)
                         {
-                            Console.WriteLine(knowItem.Name);
+                            sendDebugToServer.SendData(new Package("DeviceAdded", PackageType.Data, (BinaryConvertableString)knowItem.Name));
                             foreach (var property in deviceData[knowItem.Name])
                             {
                                 knowItem.ParseProperty(property);

@@ -8,16 +8,16 @@ using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace EVent.Connections.Models.BaseBinaryConvertables
 {
-    public class BinaryCovnertableCollection<T> : IBinaryConvertable where T : IBinaryConvertable,new()
+    public class BinaryConvertableCollection<T> : IBinaryConvertable where T : IBinaryConvertable,new()
     {
         public IEnumerable<T?> binaryConvertables { get; private set; }
 
-        public BinaryCovnertableCollection(IEnumerable<T> binaryCovnertables)
+        public BinaryConvertableCollection(IEnumerable<T> binaryCovnertables)
         {
             this.binaryConvertables = binaryCovnertables;
         }
 
-        public BinaryCovnertableCollection()
+        public BinaryConvertableCollection()
         {
             this.binaryConvertables = new T[0];
         }
@@ -77,17 +77,17 @@ namespace EVent.Connections.Models.BaseBinaryConvertables
             return ret;
         }
 
-        public static implicit operator BinaryCovnertableCollection<T>(List<T> values)
+        public static implicit operator BinaryConvertableCollection<T>(List<T> values)
         {
-            return new BinaryCovnertableCollection<T>(values);
+            return new BinaryConvertableCollection<T>(values);
         }
-        public static implicit operator BinaryCovnertableCollection<T>(HashSet<T> values)
+        public static implicit operator BinaryConvertableCollection<T>(HashSet<T> values)
         {
-            return new BinaryCovnertableCollection<T>(values);
+            return new BinaryConvertableCollection<T>(values);
         }
-        public static implicit operator BinaryCovnertableCollection<T>(T[] values)
+        public static implicit operator BinaryConvertableCollection<T>(T[] values)
         {
-            return new BinaryCovnertableCollection<T>(values);
+            return new BinaryConvertableCollection<T>(values);
         }
     }
 }

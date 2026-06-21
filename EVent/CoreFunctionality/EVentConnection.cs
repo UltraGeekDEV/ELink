@@ -13,8 +13,8 @@ namespace EVent.CoreFunctionality
 {
     internal class EVentConnection : IServer
     {
-        Action<Package, IServer?, Action<Package>>? DataRecieved;
-        Action<Package, IServer?, Action<Package>>? InterconnectDataRecievedEvent;
+        Action<Package, IServer?, Action<Package>>? DataReceived;
+        Action<Package, IServer?, Action<Package>>? InterconnectDataReceivedEvent;
         Action<string, IServer>? AddedEvent;
         Action<string, IServer>? RemovedEvent;
         ICommsProtocol protocolHandler;
@@ -34,13 +34,13 @@ namespace EVent.CoreFunctionality
             this.protocolHandler.OnClientAccepted(AcceptClient);
         }
 
-        public void OnDataRecieved(Action<Package, IServer?, Action<Package>> handler)
+        public void OnDataReceived(Action<Package, IServer?, Action<Package>> handler)
         {
-            DataRecieved += handler;
+            DataReceived += handler;
         }
-        public void OnInterconnectDataRecieved(Action<Package, IServer?, Action<Package>> handler)
+        public void OnInterconnectDataReceived(Action<Package, IServer?, Action<Package>> handler)
         {
-            InterconnectDataRecievedEvent += handler;
+            InterconnectDataReceivedEvent += handler;
         }
         public void OnEventAdded(Action<string, IServer> handler)
         {
@@ -167,7 +167,7 @@ namespace EVent.CoreFunctionality
                             await SendData(package);
                         }
 
-                        InterconnectDataRecievedEvent?.Invoke(package, this, x => { });
+                        InterconnectDataReceivedEvent?.Invoke(package, this, x => { });
                         break;
                     }
             }
@@ -240,12 +240,12 @@ namespace EVent.CoreFunctionality
                                 }
                             case "QuerryEvents":
                                 {
-                                    InterconnectDataRecievedEvent?.Invoke(package, this, x => { _ = client.Send(x); });
+                                    InterconnectDataReceivedEvent?.Invoke(package, this, x => { _ = client.Send(x); });
                                     break;
                                 }
                             case "ListEvents":
                                 {
-                                    var collection = Deserialize<BinaryCovnertableCollection<BinaryConvertableString>>(package);
+                                    var collection = Deserialize<BinaryConvertableCollection<BinaryConvertableString>>(package);
                                     if (collection == null)
                                     {
                                         break;
@@ -276,21 +276,21 @@ namespace EVent.CoreFunctionality
                             await SendData(package);
                         }
 
-                        InterconnectDataRecievedEvent?.Invoke(package, this, x => { });
+                        InterconnectDataReceivedEvent?.Invoke(package, this, x => { });
                         break;
                     }
             }
 
             return true;
         }
-        public async Task SendDataOnInterconnect(Package package, QueuedClient? recievedFrom = null)
+        public async Task SendDataOnInterconnect(Package package, QueuedClient? receivedFrom = null)
         {
             HashSet<QueuedClient> sendTo;
             lock (interconnectLock)
             {
                 if (interconnectEvents.TryGetValue(package.EventID, out var partners))
                 {
-                    sendTo = GetClients(recievedFrom, partners);
+                    sendTo = GetClients(receivedFrom, partners);
                 }
                 else
                 {
@@ -303,12 +303,12 @@ namespace EVent.CoreFunctionality
                 await partner.Send(package);
             }
         }
-        public async Task SendCommandOnInterconnect(Package package, QueuedClient? recievedFrom = null)
+        public async Task SendCommandOnInterconnect(Package package, QueuedClient? receivedFrom = null)
         {
             HashSet<QueuedClient> sendTo;
             lock (interconnectLock)
             {
-                sendTo = GetClients(recievedFrom, interconnectClients.Keys.ToHashSet());
+                sendTo = GetClients(receivedFrom, interconnectClients.Keys.ToHashSet());
             }
 
             foreach (var partner in sendTo)
@@ -520,5 +520,22 @@ namespace EVent.CoreFunctionality
                 }
             }
         }
+        public async void CommandServer(Package command)
+        {
+            switch (command.EventID)
+            {
+                case "CreateInterconnect":
+                    {
+                        var interconnect = await protocolHandler.EstablishInterconnect(command);
+                        if (interconnect != null)
+                        {
+                            AcceptClient(interconnect, true);
+                            await interconnect.Send(new Package("InterconnectRunning", PackageType.ServerAdminEvent));
+                        }
+                        break;
+                    }
+            }
+        }
+            
     }
 }

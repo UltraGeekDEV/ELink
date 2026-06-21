@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ELink.Models.Data.Image
 {
-    public enum ImageType
+    public enum ImageType : int
     {
         Mono,
         Color,

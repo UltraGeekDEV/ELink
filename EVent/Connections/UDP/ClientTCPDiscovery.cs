@@ -46,7 +46,7 @@ namespace EVent.Connections.UDP
                     }
                     else
                     {
-                        Debug.WriteLine($"Failed to recieve server info for {ServerID}");
+                        Debug.WriteLine($"Failed to receive server info for {ServerID}");
                     }
                 }
                 catch(Exception ex)

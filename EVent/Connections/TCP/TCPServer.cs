@@ -86,22 +86,35 @@ namespace EVent.Connections.TCP
 
         public async Task<QueuedClient?> EstablishInterconnect(Package package)
         {
-            TcpClient tcpClient = new TcpClient();
-            TCPConnectionData connectionData = new TCPConnectionData();
-            if (connectionData.FromBytes(package.Data))
+            Package connectionInfo = new Package();
+            if (connectionInfo.FromBytes(package.Data))
             {
-                try
-                {
-                    tcpClient.Connect(connectionData.IP, connectionData.Port);
-                    var client = new QueuedClient(new TCPStreamClient(tcpClient));
-
-                    await client.Send(new Package("UpgradeToInterconnect",PackageType.ServerAdminEvent));
-
-                    return client;
-                }
-                catch
+                if (!connectionInfo.EventID.Equals("TCP"))
                 {
                     return null;
+                }
+                TCPConnectionData connectionData = new TCPConnectionData();
+                if (connectionData.FromBytes(connectionInfo.Data))
+                {
+                    try
+                    {
+                        if (connectionData.SourcePort != port)
+                        {
+                            return null;
+                        }
+
+                        TcpClient tcpClient = new TcpClient();
+                        tcpClient.Connect(connectionData.TargetIP, connectionData.TargetPort);
+                        var client = new QueuedClient(new TCPStreamClient(tcpClient));
+
+                        await client.Send(new Package("UpgradeToInterconnect", PackageType.ServerAdminEvent));
+
+                        return client;
+                    }
+                    catch
+                    {
+                        return null;
+                    }
                 }
             }
             return null;

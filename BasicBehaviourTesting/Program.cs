@@ -1,4 +1,6 @@
 ﻿using ELink.Interfaces.CompatLayers.INDI;
+using ELink.Models.Data.Capture;
+using ELink.Models.Data.Image;
 using ELink.Models.Utils.Comms;
 using EVent.Connections;
 using EVent.Connections.Models;
@@ -12,85 +14,181 @@ using System.Net.Http;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Unicode;
+using System.Drawing;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace BasicBehaviourTesting
 {
     internal class Program
     {
-        private static string MeasureTime(DateTime startTime)
+
+        static TCPClientConnection debugListener;
+        static TCPClientConnection imageListener;
+        static TCPClientConnection debugSender;
+        static bool firstPass = true;
+        static float prevFocus;
+        static float curFocus;
+        static float curInstantFocus;
+        static bool imageReceivedBack = false;
+        static float step = 360.0f;
+        static float curPos = 0.0f;
+        static void WaitForImage()
         {
-            var delta = DateTime.Now - startTime;
-            return $"{(int)delta.TotalMilliseconds}.{delta.Microseconds}";
+            curFocus = 0.0f;
+            imageReceivedBack = false;
+            imageListener.SendData(new Package("TakeExposure", PackageType.Data, new CaptureFrame() { exposureLength = 1.0f }));
+            while (!imageReceivedBack) { }
+            curFocus += curInstantFocus;
         }
-        static void Main(string[] args)
+        static void Autofocus()
         {
-            EventHub hubA = new EventHub("HubA",new TCPServer(IPAddress.Any,8594,"HubA"));
-            EventHub hubC = new EventHub("HubC",new TCPServer(IPAddress.Any, 8599, "HubC") );
-
-            hubA.Setup();
-            hubC.Setup();
-            var client = TCPClientConnection.Connect("HubA");
-            var clientC = TCPClientConnection.Connect("HubC");
-            var clientE = TCPClientConnection.Connect("HubA");
-            var startTime = DateTime.Now;
-
-            clientE.OnDataRecieved(x =>
+            while (Math.Abs(step) > 1)
             {
-                var data = new BinaryConvertableString();
-                if (x.Data.Length == 0)
+                if (!firstPass)
                 {
-                    Console.WriteLine($"{MeasureTime(startTime)} HubA: {x.EventID}");
-                }
-                else if (data.FromBytes(x.Data))
-                {
-                    Console.WriteLine($"{MeasureTime(startTime)} HubA: {x.EventID} : {data}");
+                    curPos += step;
+                    debugSender.SendData(new Package("MoveAxis", PackageType.Data, (BinaryConvertableFloat)curPos));
+                    Task.Delay(1000).Wait();
+                    WaitForImage();
+                    if (prevFocus > curFocus || Math.Abs(prevFocus-curFocus) < 0.5f)
+                    {
+                        step *= -0.5f;
+                    }
+                    prevFocus = curFocus;
                 }
                 else
                 {
-                    var connectionData = new TCPConnectionData();
-                    Console.WriteLine($"{MeasureTime(startTime)} HubA: {x.EventID} : {connectionData.IP}:{connectionData.Port}");
+                    WaitForImage();
+                    prevFocus = curFocus;
+                    firstPass = false;
                 }
-            });
-            clientE.HookEvent("EventRemoved");
-            clientE.HookEvent("EventAdded");
-            clientE.HookEvent("CreateInterconnect");
-            clientE.HookEvent("UpgradeToInterconnect");
-            clientC.HookEvent("Test");
-
-            Task.Delay(1000).Wait();
-
-            clientC.OnDataRecieved(x =>
+            }
+            firstPass = true;
+        }
+        static float GetSharpness(ELinkImage image)
+        {
+            float[,] laplacian = new float[image.Width, image.Height];
+            if (image.Type == ImageType.Mono)
             {
-                var data = new BinaryConvertableString();
-                data.FromBytes(x.Data);
-                Console.WriteLine($"ClientC via HubA then HubC: {data}");
+                for (int loopJ = 1; loopJ < image.Height-1; loopJ++)
+                {
+                    for (int loopI = 1; loopI < image.Width-1; loopI++)
+                    {
+                        int i = loopI;
+                        int j = loopJ;
+                        int pos = i + j * image.Width;
+                        laplacian[i, j] = image.Data[pos] * -8;
+                        laplacian[i+1, j] += image.Data[pos + 1];
+                        laplacian[i+1, j+1] += image.Data[pos+1+image.Width];
+                        laplacian[i+1, j-1] += image.Data[pos + 1 - image.Width];
+                        laplacian[i, j+1] += image.Data[pos + image.Width];
+                        laplacian[i, j-1] += image.Data[pos - image.Width];
+                        laplacian[i-1, j+1] += image.Data[pos - 1 + image.Width];
+                        laplacian[i-1, j] += image.Data[pos-1];
+                        laplacian[i-1, j-1] += image.Data[pos - 1 - image.Width];
+                    }
+                }
+            }
+            else
+            {
+                for (int loopJ = 1; loopJ < image.Height - 1; loopJ++)
+                {
+                    for (int loopI = 1; loopI < image.Width - 1; loopI++)
+                    {
+                        int i = loopI;
+                        int j = loopJ;
+                        int pos = i*3 + j * image.Width*3;
+                        laplacian[i, j] = (image.Data[pos] + image.Data[pos+1] + image.Data[pos+2])/3.0f * -8;
+                        i = loopI - 1; j = loopJ;
+                        pos = i + j * image.Width;
+                        laplacian[i, j] += (image.Data[pos] + image.Data[pos + 1] + image.Data[pos + 2]) / 3.0f * 1;
+                        j = loopJ - 1;
+                        pos = i + j * image.Width;
+                        laplacian[i, j] += (image.Data[pos] + image.Data[pos + 1] + image.Data[pos + 2]) / 3.0f * 1;
+                        j = loopJ + 1;
+                        pos = i + j * image.Width;
+                        laplacian[i, j] += (image.Data[pos] + image.Data[pos + 1] + image.Data[pos + 2]) / 3.0f * 1;
+                        i = loopI + 1; j = loopJ;
+                        pos = i + j * image.Width;
+                        laplacian[i, j] += (image.Data[pos] + image.Data[pos + 1] + image.Data[pos + 2]) / 3.0f * 1;
+                        j = loopJ - 1;
+                        pos = i + j * image.Width;
+                        laplacian[i, j] += (image.Data[pos] + image.Data[pos + 1] + image.Data[pos + 2]) / 3.0f * 1;
+                        j = loopJ + 1;
+                        pos = i + j * image.Width;
+                        laplacian[i, j] += (image.Data[pos] + image.Data[pos + 1] + image.Data[pos + 2]) / 3.0f * 1;
+                        i = loopI; j = loopJ - 1;
+                        pos = i + j * image.Width;
+                        laplacian[i, j] += (image.Data[pos] + image.Data[pos + 1] + image.Data[pos + 2]) / 3.0f * 1;
+                        j = loopJ + 1;
+                        pos = i + j * image.Width;
+                        laplacian[i, j] += (image.Data[pos] + image.Data[pos + 1] + image.Data[pos + 2]) / 3.0f * 1;
+                    }
+                }
+            }
+
+            float average = 0.0f;
+            int totalCount = laplacian.GetLength(0) * laplacian.GetLength(1);
+            for (int i = 0; i < laplacian.GetLength(0); i++)
+            {
+                for (int j = 0; j < laplacian.GetLength(1); j++)
+                {
+                    average += laplacian[i, j] / totalCount;
+                }
+            }
+
+            float meanSquare = 0;
+
+            for (int i = 0; i < laplacian.GetLength(0); i++)
+            {
+                for (int j = 0; j < laplacian.GetLength(1); j++)
+                {
+                    meanSquare += MathF.Pow(laplacian[i, j] - average,2) / totalCount;
+                }
+            }
+            curInstantFocus = meanSquare;
+            return meanSquare;
+        }
+        static void Main(string[] args)
+        {
+            var eLinkHub = new EventHub("E-Link hub", new TCPServer(IPAddress.Any, 6721, "E-Link hub"));
+            eLinkHub.Setup();
+            var INDIParser = new INDIParser("192.168.0.52",7624);
+            INDIParser.Start();
+
+            debugListener = TCPClientConnection.Connect("E-Link hub");
+            imageListener = TCPClientConnection.Connect("E-Link hub");
+            debugSender = TCPClientConnection.Connect("E-Link hub");
+
+            debugListener.HookEvent("DeviceAdded");
+            debugListener.OnDataReceived(x =>
+            {
+                BinaryConvertableString data = new BinaryConvertableString();
+                if (data.FromBytes(x.Data))
+                {
+                    imageListener.HookEvent($"ImageReceived-{data}");
+                    Console.WriteLine(data);
+                }
+
             });
 
-            var connection = new Package() { EventID = "CreateInterconnect"
-                , type = PackageType.ServerAdminEvent
-                , Data = new TCPConnectionData() { IP = "127.0.0.1", Port = 4500 }.ToBytes()};
-
-            var connectionB = new Package(){
-                EventID = "CreateInterconnect"
-                ,
-                type = PackageType.ServerAdminEvent
-                ,
-                Data = new TCPConnectionData() { IP = "127.0.0.1", Port = 8594 }.ToBytes()};
-
-            client.SendData(connection);
-            Task.Delay(10000).Wait();
-            clientC.SendData(connectionB);
+            imageListener.OnDataReceived((x) =>
+            {
+                ELinkImage image = new ELinkImage();
+                if (image.FromBytes(x.Data))
+                {
+                    GetSharpness(image);
+                }
+                imageReceivedBack = true;
+            });
 
             while (true)
             {
-                //Console.WriteLine("Write your message");
-                BinaryConvertableString message = Console.ReadLine();
-                var package = new Package() { EventID = "Test", type = PackageType.Data, Data = message.ToBytes() };
-                client.SendData(package);
+                Console.ReadLine();
+                Autofocus();
             }
 
-            while (true) ;
+            while (true);
         }
     }
 }

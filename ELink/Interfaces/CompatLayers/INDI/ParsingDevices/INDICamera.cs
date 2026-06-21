@@ -2,18 +2,23 @@
 using ELink.Models.Data.Capture;
 using ELink.Models.Data.Image;
 using ELink.Models.Utils.Comms;
+using EVent.Connections;
+using EVent.Connections.Models.BaseBinaryConvertables;
 using EVent.Connections.TCP;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Linq;
+using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
+using System.Runtime.Intrinsics.X86;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using static System.Net.Mime.MediaTypeNames;
 using static System.Reflection.Metadata.BlobBuilder;
 
 namespace ELink.Interfaces.CompatLayers.INDI.ParsingDevices
@@ -22,6 +27,8 @@ namespace ELink.Interfaces.CompatLayers.INDI.ParsingDevices
     {
         public string Name { get; private set; }
         INDIParser parser;
+        TCPClientConnection captureFrameEvent;
+        TCPClientConnection sender;
 
         public INDICamera(string DeviceName, INDIParser parser)
         {
@@ -31,17 +38,26 @@ namespace ELink.Interfaces.CompatLayers.INDI.ParsingDevices
 
         public void Setup()
         {
-            //var captureFrameEvent = TCPClientConnection<CaptureFrame>.ConnectAsReciever(Events.CaptureFrame, ConnectionInfo.EVentServer, ConnectionInfo.EVentPort);
-            //captureFrameEvent.OnDataRecieved(INDICaptureFrame);
+            captureFrameEvent = TCPClientConnection.Connect("E-Link hub");
+            sender = TCPClientConnection.Connect("E-Link hub");
+            captureFrameEvent.HookEvent("TakeExposure");
+            captureFrameEvent.OnDataReceived(x =>
+            {
+                CaptureFrame data = new CaptureFrame();
+                if (data.FromBytes(x.Data))
+                {
+                    INDICaptureFrame(data);
+                }
+            });
         }
 
         private void INDICaptureFrame(CaptureFrame frame)
         {
-            Console.WriteLine($"Capture frame of {frame.exposureLength}s with gain:{frame.gain}");
+            //Console.WriteLine($"Capture frame of {frame.exposureLength}s with gain:{frame.gain}");
             Task.Run(() =>
             {
                 parser.SendCommand($"<enableBLOB device=\"{Name}\">Also</enableBLOB>");
-                parser.SendCommand($"<newNumberVector  device=\"{Name}\" name=\"CCD_EXPOSURE\" state=\"Busy\" timeout=\"60\" timestamp=\"{parser.GetINDITimeStamp()}\">\n<oneNumber name=\"CCD_EXPOSURE_VALUE\">\n{frame.exposureLength}\n</oneNumber>\n</newNumberVector >\n");
+                parser.SendCommand($"<newNumberVector  device=\"{Name}\" name=\"CCD_EXPOSURE\" state=\"Busy\" timeout=\"{frame.exposureLength + 20}\" timestamp=\"{parser.GetINDITimeStamp()}\">\n<oneNumber name=\"CCD_EXPOSURE_VALUE\">\n{frame.exposureLength}\n</oneNumber>\n</newNumberVector >\n");
             });
         }
 
@@ -51,7 +67,7 @@ namespace ELink.Interfaces.CompatLayers.INDI.ParsingDevices
             {
                 foreach (var item in property.Elements())
                 {
-                    Console.WriteLine($"Exposure left:{double.Parse(item.Value).ToString("0.##")}");
+                    //Console.WriteLine($"Exposure left:{double.Parse(item.Value).ToString("0.##")}");
                 }
             }
             else if (property.Attribute("name")?.Value == "CCD1")
@@ -61,11 +77,14 @@ namespace ELink.Interfaces.CompatLayers.INDI.ParsingDevices
                     try
                     {
                         var img = CreateImage(item.Value);
-                        //TODO:: HANDLE IMAGE
+                        if (img != null)
+                        {
+                            sender.SendData(new Package($"ImageReceived-{Name}", PackageType.Data, img));
+                        }
                     }
-                    catch (Exception ex) 
-                    { 
-                        Console.WriteLine( ex.ToString()); 
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine(ex.ToString());
                     }
                 }
             }
@@ -77,10 +96,9 @@ namespace ELink.Interfaces.CompatLayers.INDI.ParsingDevices
                 var blob = Convert.FromBase64String(data);
                 var image = new ELinkImage();
 
-                //File.WriteAllBytes("./debug.fits", blob);
+                File.WriteAllBytes("./debug.fits", blob);
 
                 int headerLength = 0;
-                Console.WriteLine("Fits header:");
                 int i = 0;
                 for (; i < blob.Length; i += 2880)
                 {
@@ -96,14 +114,14 @@ namespace ELink.Interfaces.CompatLayers.INDI.ParsingDevices
                         if (item.Contains('='))
                         {
                             var lineItem = new FITSHeaderItem(item);
-                            Console.ForegroundColor = ConsoleColor.Blue;
-                            Console.Write($"\t{lineItem.key}");
-                            Console.ForegroundColor = ConsoleColor.Gray;
-                            Console.Write(" = ");
-                            Console.ForegroundColor = ConsoleColor.White;
-                            Console.Write($"\t{lineItem.value}");
-                            Console.ForegroundColor = ConsoleColor.Green;
-                            Console.Write($"\t/ {lineItem.comment}\n");
+                            //Console.ForegroundColor = ConsoleColor.Blue;
+                            //Console.Write($"\t{lineItem.key}");
+                            //Console.ForegroundColor = ConsoleColor.Gray;
+                            //Console.Write(" = ");
+                            //Console.ForegroundColor = ConsoleColor.White;
+                            //Console.Write($"\t{lineItem.value}");
+                            //Console.ForegroundColor = ConsoleColor.Green;
+                            //Console.Write($"\t/ {lineItem.comment}\n");
                             image.FitsHeader[lineItem.key] = lineItem;
                         }
                     }
@@ -113,11 +131,9 @@ namespace ELink.Interfaces.CompatLayers.INDI.ParsingDevices
 
                 if (image.FitsHeader.Count == 0)
                 {
-                    Console.WriteLine("Skipping empty image");
                     return null;
                 }
 
-                var outputDataSize = (blob.Length - i) / 2;
                 var bzero = int.Parse(image.FitsHeader["BZERO"].value);
                 var bscale = float.Parse(image.FitsHeader["BSCALE"].value);
 
@@ -125,65 +141,18 @@ namespace ELink.Interfaces.CompatLayers.INDI.ParsingDevices
                 var width = int.Parse(image.FitsHeader["NAXIS1"].value);
                 var height = int.Parse(image.FitsHeader["NAXIS2"].value);
 
-                image.Width = width/2;
-                image.Height = height/2;
-
                 var isCol = nAxis == 3;
                 var isBayer = image.FitsHeader.ContainsKey("BAYERPAT");
-                var bayerName = image.FitsHeader["BAYERPAT"].value;
-                var bayerXOffset = int.Parse(image.FitsHeader["XBAYROFF"].value);
-                var bayerYOffset = int.Parse(image.FitsHeader["YBAYROFF"].value);
-
-                int[,] bayerMatrix = new int[,] {
-                {bayerName[1] == 'R' ? 0 : bayerName[1] == 'G' ? 1 : 2, bayerName[2] == 'R' ? 0 : bayerName[2] == 'G' ? 1 : 2 },
-                {bayerName[3] == 'R' ? 0 : bayerName[3] == 'G' ? 1 : 2 ,bayerName[4] == 'R' ? 0 : bayerName[4] == 'G' ? 1 : 2} };
-
-                var getXY = (int pos) => { return (x: (pos % width), y: (pos / width)); };
-
+                i += 2880;
                 if (isBayer)
                 {
-                    image.Data = new float[image.Width*image.Height*3];
+                    CreateBayerImage(ref image, width, height, i, bzero, bscale, blob);
                 }
                 else
                 {
-                    image.Data = new float[outputDataSize];
+                    CreateMonoImage(ref image, width, height, i, bzero, bscale, blob);
                 }
 
-                int upTo = width * height * 2;
-                float avg = 0.0f;
-                int count = 0;
-                i += 2880;
-                for (int j = 0; j < upTo; j += 2)
-                {
-                    short raw = (short)((blob[j + i] << 8) | blob[j + i+1]);
-                    float value = (raw * bscale + bzero) / (float)ushort.MaxValue*50;
-                    
-                    avg = (value + (avg*count))/(count+1);
-                    count++;
-
-                    if (isBayer)
-                    {
-                        var pos = getXY(j / 2);
-
-                        var bayerOffset = bayerMatrix[(pos.x + bayerXOffset) % 2, (pos.y + bayerYOffset) % 2];
-
-                        var outputIndex = ((pos.x/2) * 3 + bayerOffset + (pos.y/2) * image.Width*3);
-
-                        if (image.Data[outputIndex] < float.Epsilon)
-                        {
-                            image.Data[outputIndex] = value;
-                        }
-                        else
-                        {
-                            image.Data[outputIndex] = 0.5f * (value + image.Data[outputIndex]);
-                        }
-                    }
-                    else
-                    {
-                        image.Data[j/2] = value;
-                    }
-                }
-                Console.WriteLine($"Average pixel value is:{avg}");
                 if (isBayer || isCol)
                 {
                     image.Type = ImageType.Color;
@@ -204,11 +173,69 @@ namespace ELink.Interfaces.CompatLayers.INDI.ParsingDevices
 
                 return image;
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 Console.WriteLine(ex.Message);
                 Console.WriteLine(ex.StackTrace);
                 return null;
+            }
+        }
+        private void CreateBayerImage(ref ELinkImage image, int width, int height,int startOffset,int bzero,float bscale, byte[] blob)
+        {
+            image.Width = width / 2;
+            image.Height = height / 2;
+
+            var bayerName = image.FitsHeader["BAYERPAT"].value;
+            var bayerXOffset = int.Parse(image.FitsHeader["XBAYROFF"].value);
+            var bayerYOffset = int.Parse(image.FitsHeader["YBAYROFF"].value);
+
+            int[,] bayerMatrix = new int[,] {
+                {bayerName[1] == 'R' ? 0 : bayerName[1] == 'G' ? 1 : 2, bayerName[2] == 'R' ? 0 : bayerName[2] == 'G' ? 1 : 2 },
+                {bayerName[3] == 'R' ? 0 : bayerName[3] == 'G' ? 1 : 2 ,bayerName[4] == 'R' ? 0 : bayerName[4] == 'G' ? 1 : 2} };
+
+            var getXY = (int pos) => { return (x: (pos % width), y: (pos / width)); };
+
+            image.Data = new float[image.Width * image.Height * 3];
+
+            int upTo = width * height * 2;
+
+            for (int j = 0; j < upTo; j += 2)
+            {
+                short raw = (short)((blob[j + startOffset] << 8) | blob[j + startOffset + 1]);
+                float value = (raw * bscale + bzero) / (float)ushort.MaxValue * 50;
+
+                var pos = getXY(j / 2);
+
+                var bayerOffset = bayerMatrix[(pos.x + bayerXOffset) % 2, (pos.y + bayerYOffset) % 2];
+
+                var outputIndex = ((pos.x / 2) * 3 + bayerOffset + (pos.y / 2) * image.Width * 3);
+
+                if (image.Data[outputIndex] < float.Epsilon)
+                {
+                    image.Data[outputIndex] = value;
+                }
+                else
+                {
+                    image.Data[outputIndex] = 0.5f * (value + image.Data[outputIndex]);
+                }
+            }
+        }
+        private void CreateMonoImage(ref ELinkImage image, int width, int height, int startOffset, int bzero, float bscale, byte[] blob)
+        {
+            image.Width = width;
+            image.Height = height;
+
+            var outputDataSize = (blob.Length - startOffset) / 2;
+            image.Data = new float[outputDataSize];
+
+            int upTo = width * height * 2;
+
+            for (int j = 0; j < upTo; j += 2)
+            {
+                short raw = (short)((blob[j + startOffset] << 8) | blob[j + startOffset + 1]);
+                float value = (raw * bscale + bzero) / (float)ushort.MaxValue * 50;
+
+                image.Data[j / 2] = value;
             }
         }
     }
